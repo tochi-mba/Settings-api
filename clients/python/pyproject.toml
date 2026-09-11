@@ -1,0 +1,19 @@
+[project]
+name = "settings-client"
+version = "0.1.0"
+description = "The client every service in this family uses to read one person's settings."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "tochi-mba" }]
+dependencies = ["httpx>=0.27"]
+
+[project.urls]
+Repository = "https://github.com/tochi-mba/Settings-api"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["settings_client"]
