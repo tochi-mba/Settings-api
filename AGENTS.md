@@ -70,7 +70,7 @@ may use, except `domain`.
 
 `domain/` is the bottom because it is where the rules are written down in a form a person
 can read. `domain/catalogue/` is the extreme case: it is a **table**, restricted by
-contract to importing `domain/types` alone, so thirty-six settings stay something a
+contract to importing `domain/types` alone, so forty-two settings stay something a
 reviewer can check against what the services actually do rather than something they have
 to execute in their head.
 
