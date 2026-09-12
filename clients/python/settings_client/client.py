@@ -320,24 +320,27 @@ class HttpSettingsClient:
         )
 
     def _remember(self, key: tuple[str, str], entry: _Entry) -> None:
-        """Cache an entry, evicting the least recently used if we are at the bound."""
+        """Cache an entry, evicting the least recently used if we are at the bound.
+
+        Popped before it is re-inserted, so a refresh of an entry that already existed
+        lands at the most-recently-used end rather than keeping its old position.
+        """
+        self._entries.pop(key, None)
         self._entries[key] = entry
-        self._touch(key)
         while len(self._entries) > self._max_entries:
             oldest = next(iter(self._entries))
             del self._entries[oldest]
             self._locks.pop(oldest, None)
 
     def _touch(self, key: tuple[str, str]) -> None:
-        """Move an entry to the most-recently-used end.
+        """Move an existing entry to the most-recently-used end.
 
         A plain dict, relying on insertion order, rather than ``OrderedDict``: dicts have
         preserved insertion order since 3.7 and this needs exactly one operation
-        ``OrderedDict`` would give a name to.
+        ``OrderedDict`` would give a name to. Only ever called for a key the caller has
+        just found, so there is no "absent" arm to cover.
         """
-        entry = self._entries.pop(key, None)
-        if entry is not None:
-            self._entries[key] = entry
+        self._entries[key] = self._entries.pop(key)
 
 
 def _monotonic() -> float:

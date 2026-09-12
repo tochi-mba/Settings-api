@@ -242,6 +242,29 @@ class TestSingleFlight:
         assert all(result.values["default_market"] == "PT" for result in results)
         await client.aclose()
 
+    async def test_callers_that_queued_behind_the_fetch_take_its_answer(self) -> None:
+        # The transport yields to the loop before answering, as a socket would, so the
+        # other callers genuinely wait on the lock and then find the entry the first one
+        # stored rather than fetching their own.
+        recorder = Recorder()
+
+        async def slow(request: httpx.Request) -> httpx.Response:
+            recorder.requests.append(request)
+            await asyncio.sleep(0)
+            return httpx.Response(200, json=BODY, headers={"ETag": recorder.etag})
+
+        client = HttpSettingsClient(
+            base_url="http://settings.test",
+            service_token=SERVICE_TOKEN,
+            transport=httpx.MockTransport(slow),
+        )
+        results = await asyncio.gather(
+            *(client.resolve("spotify", user_token=TOKEN_A) for _ in range(5))
+        )
+        assert recorder.count == 1
+        assert all(result is results[0] for result in results)
+        await client.aclose()
+
     async def test_concurrent_callers_for_different_people_are_not_collapsed(self) -> None:
         recorder = Recorder()
         client = build(recorder)
@@ -472,6 +495,9 @@ class TestTheShape:
     def test_get_returns_a_supplied_default_for_an_absent_key(self) -> None:
         resolved = ResolvedSettings(namespace="spotify", values={"a": 1}, fallbacks={})
         assert resolved.get("nope", "fallback") == "fallback"
+        # And the value itself when the key is present, default or no default.
+        assert resolved.get("a") == 1
+        assert resolved.get("a", "ignored") == 1
 
     def test_contains_covers_refused_keys_too(self) -> None:
         resolved = ResolvedSettings(
