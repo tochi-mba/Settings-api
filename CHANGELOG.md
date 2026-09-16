@@ -18,6 +18,9 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Changed
 
+- CI inherits `FAMILY_GITHUB_TOKEN`; image builds accept a BuildKit `github_token`
+  secret so tagged client packages can be fetched from private family repositories.
+  `make docker` uses the signed-in GitHub account without saving its token in an image.
 - Token verification uses `keyring-client`, the verifier shared by the whole family,
   instead of this service's own copy of the rules. The rules themselves are unchanged:
   RS256 only, the issuer pinned, every claim required, expiry on the injected clock, one

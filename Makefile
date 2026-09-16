@@ -54,8 +54,9 @@ smoke: ## End-to-end check against a running settings-api and a running keyring
 run: ## Serve the API on :8003 with reload
 	$(UV) run uvicorn settings_api.api.app:create_app --factory --reload --port 8003
 
+# Signed-in gh fetches private client packages; with no session git fetches anonymously.
 docker: ## Build the container image
-	docker build -t settings-api:local .
+	@GITHUB_TOKEN="$$(gh auth token 2>/dev/null)" docker build --secret id=github_token,env=GITHUB_TOKEN -t settings-api:local .
 
 clean: ## Remove caches and build output
 	rm -rf .pytest_cache .mypy_cache .ruff_cache .hypothesis htmlcov .coverage build dist
