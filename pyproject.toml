@@ -302,4 +302,4 @@ forbidden_modules = [
 ]
 
 [tool.uv.sources]
-keyring-client = { path = "../Keyring-api/clients/python", editable = true }
+keyring-client = { git = "https://github.com/tochi-mba/Keyring-api", subdirectory = "clients/python", tag = "keyring-client-v0.1.0" }
