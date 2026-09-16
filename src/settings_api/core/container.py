@@ -96,6 +96,9 @@ class Container:
             cache_seconds=settings.jwks_cache_seconds,
             min_refetch_seconds=settings.jwks_min_refetch_seconds,
             timeout_seconds=settings.keyring_http_timeout_seconds,
+            # The shared client's diagnostics -- a refused key id, a fetch that failed -- land
+            # in this service's structured, redacted log rather than the standard library's.
+            logger=get_logger("settings_api.auth.jwks"),
         )
 
         return cls(

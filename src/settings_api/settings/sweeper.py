@@ -16,7 +16,7 @@ catalogue rather than about anybody's settings. Each affected account gets one e
 saying its stored choice was destroyed, recorded at that account's current revision
 without bumping it: the rows had been ignored on every read since the key was retired, so
 no resolved value changed, and invalidating every cached copy of an unchanged document
-would be a lie told to six services at once.
+would be a lie told to every consuming service at once.
 """
 
 from __future__ import annotations

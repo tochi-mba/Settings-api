@@ -38,6 +38,7 @@ EXPECTED_COUNTS = {
     "media": 6,
     "spotify": 4,
     "search": 6,
+    "environments": 4,
 }
 
 
@@ -101,7 +102,7 @@ class TestTheCatalogueAsAWhole:
         assert {
             namespace: len(entries) for namespace, entries in CATALOGUE.items()
         } == EXPECTED_COUNTS
-        assert len(BY_QUALIFIED) == sum(EXPECTED_COUNTS.values()) == 42
+        assert len(BY_QUALIFIED) == sum(EXPECTED_COUNTS.values()) == 46
 
     def test_no_qualified_name_repeats(self) -> None:
         assert len(IDS) == len(set(IDS))

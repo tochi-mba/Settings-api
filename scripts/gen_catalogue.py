@@ -181,7 +181,7 @@ def _module_doc(namespace: str) -> str:
 
 
 def main() -> None:
-    DOCS.write_text(render())
+    DOCS.write_text(render(), encoding="utf-8", newline="\n")
     print(f"wrote {DOCS}")
 
 

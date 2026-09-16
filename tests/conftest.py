@@ -73,6 +73,11 @@ SERVICES: dict[str, dict[str, Any]] = {
 and ``spotify-api``'s is deliberately shorter than its own service name -- the two are
 independent strings, and a test that used the same value for both would pass whether or
 not the code kept them apart.
+
+**Do not copy the ``spotify`` prefix into a deployment.** In code the two strings are
+independent; in a deployment, a service that presents the same user token to keyring's
+internal surface must use its keyring service name as its prefix, because keyring accepts
+that token only when its audience is exactly that name. See ``docs/integration.md``.
 """
 
 

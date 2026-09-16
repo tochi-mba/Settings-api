@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import sqlite3
-import stat
 from pathlib import Path
 
 import pytest
@@ -24,10 +23,7 @@ from settings_api.storage.database import (
 )
 from settings_api.storage.migrator import migrate
 from tests.fakes.clock import EPOCH
-
-
-def mode_of(path: Path) -> int:
-    return stat.S_IMODE(path.stat().st_mode)
+from tests.support.filemode import assert_mode
 
 
 class TestThePragmasAreInForce:
@@ -89,7 +85,7 @@ class TestTheFileMode:
         path = tmp_path / "fresh.db"
         db = Database(path)
         try:
-            assert mode_of(path) == DATABASE_FILE_MODE
+            assert_mode(path, DATABASE_FILE_MODE)
         finally:
             await db.aclose()
 
@@ -101,7 +97,7 @@ class TestTheFileMode:
 
         second = Database(path)
         try:
-            assert mode_of(path) == DATABASE_FILE_MODE
+            assert_mode(path, DATABASE_FILE_MODE)
         finally:
             await second.aclose()
 
@@ -118,7 +114,7 @@ class TestTheFileMode:
             wal = path.with_name(path.name + "-wal")
             assert wal.exists()
             make_private(path)
-            assert mode_of(wal) == DATABASE_FILE_MODE
+            assert_mode(wal, DATABASE_FILE_MODE)
         finally:
             await db.aclose()
 
@@ -126,7 +122,7 @@ class TestTheFileMode:
         path = tmp_path / "lonely.db"
         path.write_bytes(b"")
         make_private(path)
-        assert mode_of(path) == DATABASE_FILE_MODE
+        assert_mode(path, DATABASE_FILE_MODE)
         assert not path.with_name(path.name + "-wal").exists()
 
     def test_the_parent_directory_is_created_owner_only(self, tmp_path: Path) -> None:
@@ -134,7 +130,7 @@ class TestTheFileMode:
         db = Database(nested)
         try:
             assert nested.exists()
-            assert mode_of(nested.parent) == 0o700
+            assert_mode(nested.parent, 0o700)
         finally:
             asyncio.run(db.aclose())
 

@@ -1,8 +1,8 @@
 """``common`` -- the answers every service needs and none of them owns.
 
 Every service may read this namespace, which is the whole reason it exists. "What time
-zone are you in" is a question six services would otherwise each ask separately, and a
-person would answer six times and get it wrong in one of them.
+zone are you in" is a question every service would otherwise ask separately, and a
+person would answer it once per service and get it wrong in one of them.
 
 ``default_profile`` is the one that resolves an existing disagreement rather than
 proposing a new convenience, and it is worth being precise about what that disagreement

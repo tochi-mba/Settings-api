@@ -51,7 +51,7 @@ class TestReadiness:
         assert response.status_code == 200
         body = response.json()
         assert body["ready"] is True
-        assert body["settings_count"] == len(BY_QUALIFIED) == 42
+        assert body["settings_count"] == len(BY_QUALIFIED) == 46
         assert [check["name"] for check in body["checks"]] == [
             "database",
             "keyring",

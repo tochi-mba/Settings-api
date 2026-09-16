@@ -12,13 +12,13 @@ searches resolve against, how long their downloads sit on a shared box, which mo
 answers their questions, what "delete" means for their notes, which providers must never
 see their queries.
 
-It is the sixth service in this family. [keyring](../Keyring-api) holds the accounts and
+It is the second hub in this family. [keyring](../Keyring-api) holds the accounts and
 the credentials and is the auth root; this service has no accounts of its own. The only
 identity it ever learns is the `sub` of a token keyring signed, verified locally against
 keyring's JWKS document. It never calls keyring at request time, and it cannot ask keyring
 anything about a person.
 
-The service exists because roughly three dozen knobs across six services are not really
+The service exists because roughly four dozen knobs across seven services are not really
 deployment decisions. `spotify-api`'s `default_market` is the clearest one: which
 country's catalogue somebody's track searches resolve against is a fact about a person,
 deployed as an environment variable that applies to everybody on the box.
@@ -94,10 +94,14 @@ deliberately and say why in the commit message -- do not work around it.
    plain `ValueError` and `domain/values.py` is what turns it into a domain error, and why
    the lookups that raise domain errors live in `domain/registry.py` rather than in the
    catalogue package.
-4. **`jwt` and `httpx` are imported only by `settings_api.auth`.** The contract "Outbound
-   HTTP and JWT live in one package". It is also why `JwksClient.key_for` is annotated
-   `-> Any` rather than `-> jwt.PyJWK`: a signature naming a library's type is how that
-   library leaks out of the package meant to hold it.
+4. **Keyring is spoken to from `settings_api.auth` alone, through `keyring_client`.** The
+   contract "Outbound HTTP and JWT live in one package" forbids `jwt`, `httpx` and
+   `keyring_client` to every other layer. The token rules themselves -- RS256, the pinned
+   issuer, the required claims, expiry on the injected clock, the JWKS rate limits -- are the
+   family's shared library, tested against keyring's real signer in the keyring repository.
+   `auth/` adds only this service's audience rules (namespaces, service grants) and
+   translates the library's errors into this service's domain errors, so nothing above it
+   knows a library was involved.
 5. **SQL stays behind the stores.** The contract "SQL stays behind the stores" forbids
    `api`, `auth` and `domain` from importing `settings_api.storage` or `sqlite3`. A router
    that *could* write a query is a router that will eventually contain one.
@@ -231,7 +235,7 @@ Notes earned during this build:
 ## Recipe: add a setting
 
 This is the recipe the whole design exists to make cheap. One catalogue entry and a doc
-regeneration -- no migration, no schema change, and no deploy of six services.
+regeneration -- no migration, no schema change, and no deploy of the services that read it.
 
 1. Add a `SettingDef` to the right module in `src/settings_api/domain/catalogue/`. Every
    field that is not optional is not optional for a reason; `on_unavailable` in particular
@@ -284,8 +288,10 @@ disable SSRF protection, robots compliance or authentication in a service that o
    both are refused at startup. Sharing one would make the audience-family check
    meaningless, because whichever name matched first would decide which audience is
    acceptable.
-4. `audience_prefix` is not the service name and the two are deliberately independent. It
-   is the audience family keyring mints that service's user tokens under.
+4. `audience_prefix` is independent of the service's key in code. It is the audience family
+   keyring mints that service's user tokens under -- and for a service that also presents
+   those tokens to keyring's internal surface, keyring requires that audience to be exactly
+   the service's `KEYRING_SERVICE_TOKENS` name, so in a deployment the two are the same.
 5. Tests: that it reads its own namespace merged with `common`, that it gets a 403 for
    somebody else's, and that a user token from another audience family is a 401.
 
@@ -335,6 +341,11 @@ disable SSRF protection, robots compliance or authentication in a service that o
 - `make matrix` runs 3.11 and 3.12 because coverage differs between them: until 3.12,
   `isinstance()` against a runtime-checkable Protocol executed property getters, so a
   property with no test of its own looked covered on 3.11 and does not on 3.12.
+- Assert a file mode with `assert_mode` from `tests/support/filemode.py`, never with
+  `stat.S_IMODE` directly. It is exact on POSIX and compares only the owner's bits on
+  Windows, where NTFS has no permission bits and every writable file reads 0666, so a
+  direct comparison fails natively there. For the same reason a test that moves `~` sets
+  `USERPROFILE` as well as `HOME`: that is what `Path.expanduser()` reads on Windows.
 
 ## Commit conventions
 

@@ -128,7 +128,7 @@ class TestDescribeSettings:
     async def test_every_setting_is_described_with_bounds(self, client: AsyncClient) -> None:
         response = await client.get("/v1/settings/schema", headers=auth(OWNER))
         body = response.json()
-        assert body["count"] == 42 == len(body["settings"])
+        assert body["count"] == 46 == len(body["settings"])
         assert response.headers["ETag"] == '"account-a.0"'
         market = next(
             s
