@@ -32,7 +32,7 @@ person's own token. There are two, and both are ones where the service that woul
 from changing them is the service that should not be allowed to.
 
 
-**42 settings across 7 namespaces.**
+**46 settings across 8 namespaces.**
 
 ## Contents
 
@@ -43,12 +43,13 @@ from changing them is the service that should not be allowed to.
 - **`media`** (6) — `artifact_retention_hours`, `job_retention_hours`, `concurrent_jobs`, `max_file_gb`, `delete_artifact_after_download`, `preferred_quality`
 - **`spotify`** (4) — `default_market`, `max_batch_size`, `confirm_timeout_seconds`, `job_retention_hours`
 - **`search`** (6) — `default_model`, `search_backend`, `disabled_providers`, `max_content_chars`, `safe_search`, `store_query_history`
+- **`environments`** (4) — `idle_environment_hours`, `idle_shell_minutes`, `max_environments_per_profile`, `default_shell`
 
 ## `common`
 
 Every service may read this namespace, which is the whole reason it exists. "What time
-zone are you in" is a question six services would otherwise each ask separately, and a
-person would answer six times and get it wrong in one of them.
+zone are you in" is a question every service would otherwise ask separately, and a
+person would answer it once per service and get it wrong in one of them.
 
 ``default_profile`` is the one that resolves an existing disagreement rather than
 proposing a new convenience, and it is worth being precise about what that disagreement
@@ -885,3 +886,99 @@ Off, a query exists for the length of the request and is gone. On, it is kept, a
 **Owner-writable only.** A service holding this person's token may write within its own namespace, and this is one of the two exceptions, because the service that would benefit from switching it on is the service that would be doing the keeping. Turning it on has to be the person's own act, with a token they minted for settings itself.
 
 Off is conservative and is what an outage lands on: nothing is kept.
+
+## `environments`
+
+environments-api gives an assistant a Linux shell per account and profile, and reaps what
+nobody is using. Its two reaping clocks and its per-profile cap answer a person's question
+-- "how long may my half-finished work sit there", "how many environments do I want to
+juggle" -- and today each is one number for the whole box.
+
+Everything that bounds what a sandbox *can do* stays with the operator and is not here:
+``allow_network``, ``min_sandbox_tier``, every memory, CPU, disk and output quota,
+``max_environments_per_account``, ``operator_accounts`` and ``api_keys``. A person choosing
+their own network access or sandbox strength would be a person choosing the machine's
+exposure, and that is not a preference. A per-person network *default* was considered and
+left out: its only safe fallback during an outage would be "no network", which would change
+what everybody gets today whenever settings-api was unreachable.
+
+``default_profile`` is not repeated here. ``common.default_profile`` answers it for every
+service, environments-api's ``ENVAPI_DEFAULT_PROFILE`` included.
+
+> **Needs a change in the owning service first:** `default_shell`. Until that change lands, setting these stores the value and changes no behaviour.
+
+#### `environments.idle_environment_hours`
+
+*How long an environment nobody is using survives before it is torn down.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Default | `24` |
+| Bounds | 1-168, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — environments-api's `environment_idle_ttl_seconds`, default one day. |
+| Safe to fall back to | `24` |
+
+An environment with no live shell and no activity for this long is reaped, and its files go with it. Hours rather than seconds, because this is a person's choice and seconds are a machine's unit; environments-api converts.
+
+The maximum is a week, for somebody who leaves work half-finished over a weekend. Lowering it gives the box its disk back sooner.
+
+A day is the fallback rather than the short end, and the reason is that the two directions are not symmetrical here. Reaping early during an outage deletes somebody's unfinished work, which cannot be fetched again; keeping an idle sandbox a little longer than asked costs disk. A day is also what environments-api does today, so an outage changes nothing anybody relies on.
+
+#### `environments.idle_shell_minutes`
+
+*How long a shell nobody is using stays open before it is closed.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Default | `60` |
+| Bounds | 1-1440, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — environments-api's `shell_idle_ttl_seconds`, default one hour. |
+| Safe to fall back to | `60` |
+
+Closing an idle shell ends the process running in it, not the environment's files: those follow `idle_environment_hours`. Minutes rather than seconds, for the same reason as its neighbour.
+
+Lowering it makes sure a forgotten session does not sit on a shared machine with credentials injected into its environment. Raising it, up to a day, suits long commands that print nothing for a while.
+
+An hour is the fallback because it is today's behaviour, and because a shell closed early by an outage would be a long build lost, which is the worse of the two directions.
+
+#### `environments.max_environments_per_profile`
+
+*How many environments this person may keep in one profile at once.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Default | `5` |
+| Bounds | 1-5, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — environments-api's `max_environments_per_profile`. |
+| Safe to fall back to | `5` |
+
+The maximum is the operator's own per-profile cap rather than a number with meaning of its own: a person may lower it and never raise it, and the operator's per-account cap still applies across every profile on top.
+
+Lowering it is how somebody stops an assistant from creating a fresh environment for every question instead of reusing the one it has.
+
+Falling back to the cap during an outage means environments-api behaves exactly as it does today. Nothing about this setting protects anybody's privacy, so landing on the cap weakens nothing.
+
+#### `environments.default_shell`
+
+*Which shell a new session starts when the request does not name one.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Default | `bash` |
+| Bounds | `bash` / `sh` |
+| On unavailable | use default |
+| Origin | **proposed** — New here. environments-api has one deployment-wide `shell_binary`, so it needs to accept a choice between installed shells before this does anything. |
+| Safe to fall back to | `bash` |
+
+`sh` is for people whose scripts are meant to be portable and who want to find out when they are not. `bash` is what environments-api starts today.
+
+The choices are deliberately two shells every sandbox image has. A free-text path would be a person choosing which binary runs inside the sandbox, which is the operator's decision, and a shell that is not installed would be a setting that breaks every session it applies to.
+
+`bash` is the fallback because it is today's behaviour and the more capable of the two, so an outage never turns a working script into a failing one.

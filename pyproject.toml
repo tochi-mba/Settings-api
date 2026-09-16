@@ -17,10 +17,12 @@ classifiers = [
 dependencies = [
     "fastapi>=0.115",
     "httpx>=0.27",
+    "keyring-client",
     "pydantic>=2.9",
     "pydantic-settings>=2.5",
     "pyjwt>=2.9",
     "structlog>=24.4",
+    "tzdata>=2025.2",
     "uvicorn[standard]>=0.30",
 ]
 
@@ -271,7 +273,7 @@ source_modules = [
     "settings_api.settings",
     "settings_api.storage",
 ]
-forbidden_modules = ["httpx", "jwt"]
+forbidden_modules = ["httpx", "jwt", "keyring_client"]
 allow_indirect_imports = true
 
 # The catalogue is a table, and a table is reviewable. A catalogue module that could
@@ -298,3 +300,6 @@ forbidden_modules = [
     "settings_api.domain.secrets",
     "settings_api.domain.values",
 ]
+
+[tool.uv.sources]
+keyring-client = { path = "../Keyring-api/clients/python", editable = true }

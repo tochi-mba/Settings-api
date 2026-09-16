@@ -2,22 +2,28 @@
 
 Not a test. The suite already proves the behaviour against the real app in-process; this
 proves the *deployment* -- that the two services agree about the issuer, that the service
-tokens configured here match the ones the consuming services hold, that the database file
-is 0600 on the box it is actually running on, and that a deletion really does remove the
-bytes from the file rather than from the table.
+tokens configured here match the ones the consuming services hold, that each service's
+audience prefix matches the audience keyring mints for it, that the database file is 0600 on
+the box it is actually running on, and that a deletion really does remove the bytes from the
+file rather than from the table.
 
 Every check is a thing that can only go wrong between two processes. Anything provable
 inside one belongs in the suite.
 
-Run it with ``make smoke``. It prints what it did and exits non-zero on the first failure,
-because a smoke test that carried on after a failure would bury the first thing that broke.
+Tokens are minted the way a real caller mints them: log in to keyring with an account that
+already exists, then exchange the session for a short-lived token per audience with
+``issue_service_token``. Nothing here needs keyring's break-glass token.
+
+Run it with ``make smoke``. It prints what it did and exits non-zero on the first fatal
+problem, because a smoke test that carried on would bury the first thing that broke.
 
 Environment:
     SETTINGS_API_URL          default http://127.0.0.1:8003
     KEYRING_URL               default http://127.0.0.1:8001
-    KEYRING_ADMIN_TOKEN       to create the account and mint tokens
-    SETTINGS_SPOTIFY_TOKEN    the service token configured for spotify-api
-    SETTINGS_MEDIA_TOKEN      the service token configured for media-tool
+    SMOKE_EMAIL               an account that already exists in keyring
+    SMOKE_PASSWORD            its password
+    SETTINGS_SPOTIFY_TOKEN    the service token configured here for spotify-api
+    SETTINGS_MEDIA_TOKEN      the service token configured here for media-tool
     SETTINGS_DB_PATH          the database file, for the byte scan and the mode check
 """
 
@@ -33,10 +39,16 @@ import httpx
 
 SETTINGS_URL = os.environ.get("SETTINGS_API_URL", "http://127.0.0.1:8003").rstrip("/")
 KEYRING_URL = os.environ.get("KEYRING_URL", "http://127.0.0.1:8001").rstrip("/")
-ADMIN_TOKEN = os.environ.get("KEYRING_ADMIN_TOKEN", "")
+EMAIL = os.environ.get("SMOKE_EMAIL", "")
+PASSWORD = os.environ.get("SMOKE_PASSWORD", "")
 SPOTIFY_TOKEN = os.environ.get("SETTINGS_SPOTIFY_TOKEN", "")
 MEDIA_TOKEN = os.environ.get("SETTINGS_MEDIA_TOKEN", "")
 DB_PATH = Path(os.environ.get("SETTINGS_DB_PATH", "var/settings.db"))
+
+SPOTIFY_AUDIENCE = "spotify-api"
+"""spotify-api's name in KEYRING_SERVICE_TOKENS, and therefore its prefix in this grant."""
+
+MEDIA_AUDIENCE = "media-tool"
 
 SENTINEL_MARKET = "GB"
 """The value written and then looked for in the file's bytes.
@@ -46,11 +58,7 @@ timezone below is for. A market code alone would match by accident in any file.
 """
 
 SENTINEL_ZONE = "Pacific/Chatham"
-"""A real IANA zone nobody sets by accident, so finding it in the bytes means something.
-
-Chosen because it is a legal timezone (the setting validates against tzdata) and is
-distinctive enough that a match in a binary file is not a coincidence.
-"""
+"""A real IANA zone nobody sets by accident, so finding it in the bytes means something."""
 
 _failures = 0
 
@@ -70,16 +78,27 @@ def fatal(message: str) -> None:
     sys.exit(1)
 
 
-def mint(client: httpx.Client, account_id: str, audience: str, profile: str) -> str:
-    """Ask keyring for a token, the way a real caller would."""
+def log_in(client: httpx.Client) -> str:
+    """Open a keyring session for the smoke account."""
     response = client.post(
-        f"{KEYRING_URL}/v1/internal/tokens",
-        json={"account_id": account_id, "audience": audience, "profile": profile},
-        headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
+        f"{KEYRING_URL}/v1/auth/login", json={"email": EMAIL, "password": PASSWORD}
     )
     if response.status_code != httpx.codes.OK:
-        fatal(f"keyring would not mint an {audience} token: {response.status_code} {response.text}")
-    token: str = response.json()["access_token"]
+        fatal(f"keyring would not log the smoke account in: {response.status_code}")
+    token: str = response.json()["token"]
+    return token
+
+
+def mint(client: httpx.Client, session: str, audience: str) -> str:
+    """Exchange the session for a short-lived token, the way every real caller does."""
+    response = client.post(
+        f"{KEYRING_URL}/v1/auth/service-token",
+        json={"audience": audience},
+        headers={"Authorization": f"Bearer {session}"},
+    )
+    if response.status_code != httpx.codes.OK:
+        fatal(f"keyring would not mint an {audience} token: {response.status_code}")
+    token: str = response.json()["token"]
     return token
 
 
@@ -98,15 +117,15 @@ def service(service_token: str, user_token: str) -> dict[str, str]:
 # it into helpers would hide that step 11 only proves anything because step 10 confirmed
 # the sentinel was in the file first.
 def main() -> None:
-    if not ADMIN_TOKEN:
-        fatal("KEYRING_ADMIN_TOKEN is not set; this script needs keyring to mint tokens")
+    if not (EMAIL and PASSWORD):
+        fatal("SMOKE_EMAIL and SMOKE_PASSWORD are not set; create an account in keyring first")
+    if not (SPOTIFY_TOKEN and MEDIA_TOKEN):
+        fatal("SETTINGS_SPOTIFY_TOKEN and SETTINGS_MEDIA_TOKEN must both be set")
 
     with httpx.Client(timeout=10.0) as client:
-        print("\n1. keyring mints a token with audience `settings`")
-        account_id = os.environ.get("SMOKE_ACCOUNT_ID", "")
-        if not account_id:
-            fatal("SMOKE_ACCOUNT_ID is not set; create an account in keyring first")
-        owner = mint(client, account_id, "settings", "personal")
+        print("\n1. keyring logs the account in and mints a token with audience `settings`")
+        session = log_in(client)
+        owner = mint(client, session, "settings")
         check("minted", bool(owner))
 
         print("\n2. GET /v1/settings returns defaults with an ETag, and never 404s")
@@ -118,15 +137,11 @@ def main() -> None:
 
         print("\n3. GET /v1/settings/schema describes every setting")
         response = client.get(f"{SETTINGS_URL}/v1/settings/schema", headers=person(owner))
-        schema = response.json()
-        described = schema["settings"]
+        described = response.json()["settings"]
         check("200", response.status_code == httpx.codes.OK)
         check(
-            "every entry has a default, bounds and set:false",
-            all(
-                "default" in entry and "bounds" in entry and entry["set"] is False
-                for entry in described
-            ),
+            "every entry has a default and bounds",
+            all("default" in entry and "bounds" in entry for entry in described),
             f"{len(described)} settings",
         )
 
@@ -152,25 +167,25 @@ def main() -> None:
             headers=person(owner),
         )
 
-        print("\n5. spotify-api resolves its namespace, with common merged underneath")
-        if not SPOTIFY_TOKEN:
-            fatal("SETTINGS_SPOTIFY_TOKEN is not set")
-        spotify_user = mint(client, account_id, "spotify", "personal")
+        print("\n5. spotify-api resolves its namespace with the token keyring mints for it")
+        spotify_user = mint(client, session, SPOTIFY_AUDIENCE)
         resolved = client.get(
             f"{SETTINGS_URL}/v1/internal/settings/spotify",
             headers=service(SPOTIFY_TOKEN, spotify_user),
         )
-        check("200", resolved.status_code == httpx.codes.OK, resolved.text[:120])
-        values = resolved.json()["settings"]
+        check(
+            "200 -- the grant's audience_prefix matches keyring's service name",
+            resolved.status_code == httpx.codes.OK,
+            resolved.text[:120],
+        )
+        values = resolved.json().get("settings", {})
         check("its own setting", values.get("default_market") == SENTINEL_MARKET)
         check("common merged underneath", values.get("timezone") == SENTINEL_ZONE)
         check("fallbacks returned", "fallbacks" in resolved.json())
         internal_etag = resolved.headers.get("ETag", "")
 
         print("\n6. media-tool cannot read the spotify namespace")
-        if not MEDIA_TOKEN:
-            fatal("SETTINGS_MEDIA_TOKEN is not set")
-        media_user = mint(client, account_id, "media-tool", "personal")
+        media_user = mint(client, session, MEDIA_AUDIENCE)
         refused = client.get(
             f"{SETTINGS_URL}/v1/internal/settings/spotify",
             headers=service(MEDIA_TOKEN, media_user),
@@ -191,16 +206,16 @@ def main() -> None:
         )
         check("304", revalidated.status_code == httpx.codes.NOT_MODIFIED)
 
-        print("\n9. a second token for the same person via a different profile sees the same")
-        other_profile = mint(client, account_id, "settings", "work")
-        same = client.get(f"{SETTINGS_URL}/v1/settings/spotify", headers=person(other_profile))
+        print("\n9. a second, separately minted token for the same person sees the same")
+        second = mint(client, log_in(client), "settings")
+        same = client.get(f"{SETTINGS_URL}/v1/settings/spotify", headers=person(second))
         check(
             "identical document",
             same.json()["settings"]["spotify"]["default_market"] == SENTINEL_MARKET,
-            "one settings set per account, however many profiles",
+            "one settings set per account, however many sessions or profiles",
         )
 
-        print("\n10. the database file is 0600 and its logs are usable")
+        print("\n10. the database file is 0600 and holds the sentinel before erasure")
         if DB_PATH.exists():
             mode = stat.S_IMODE(DB_PATH.stat().st_mode)
             check("0600", mode == 0o600, oct(mode))

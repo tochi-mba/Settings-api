@@ -26,7 +26,7 @@ door in :mod:`settings_api.domain.registry` rather than here, and why
 ## Adding a setting
 
 One entry in one of these modules, then ``make catalogue`` to regenerate
-``docs/catalogue.md``. No migration, no schema change, and no deploy of six services --
+``docs/catalogue.md``. No migration, no schema change, and no deploy of the services that read it --
 that is the property the whole design is arranged around, and it is worth protecting.
 """
 
@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING
 
 from settings_api.domain.catalogue import (
     common,
+    environments,
     keyring,
     media,
     persona,
@@ -50,7 +51,7 @@ if TYPE_CHECKING:
 COMMON = common.NAMESPACE
 """The namespace every service may read. Named here so callers need not spell it."""
 
-_MODULES = (common, keyring, user, persona, media, spotify, search)
+_MODULES = (common, keyring, user, persona, media, spotify, search, environments)
 """Every namespace module, in the order the documentation presents them.
 
 ``common`` first because everything else is read alongside it; then the two services whose

@@ -24,6 +24,7 @@ sees.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
@@ -39,6 +40,9 @@ _SAMPLES = 10_000
 A single pair of calls could legitimately land in the same tick of a coarse clock, and a
 test that failed for that reason would be a flake rather than a finding.
 """
+
+_PATIENCE_SECONDS = 1.0
+"""How long to wait for a coarse monotonic clock to tick before calling it frozen."""
 
 CLOCK_FACTORIES: list[Callable[[], Clock]] = [SystemClock, FakeClock]
 CLOCK_IDS = ["system", "fake"]
@@ -111,11 +115,19 @@ class TestTheDurationTheSystemClockMeasures:
         assert readings == sorted(readings)
 
     def test_the_reading_advances_as_work_is_done(self) -> None:
-        readings = [SystemClock().monotonic() for _ in range(_SAMPLES)]
+        clock = SystemClock()
+        first = clock.monotonic()
 
         # A frozen monotonic clock would satisfy "never runs backwards" while making every
-        # cache immortal, so measure that time actually passes across ten thousand calls.
-        assert readings[-1] > readings[0]
+        # cache immortal, so measure that time actually passes. Read until it moves rather
+        # than a fixed number of times: Windows ticks its monotonic clock roughly every
+        # 15.6 ms, and ten thousand calls can finish inside one tick on a fast machine. The
+        # bound is on real elapsed time, so a clock that truly never moves still fails.
+        deadline = time.perf_counter() + _PATIENCE_SECONDS
+        while clock.monotonic() == first and time.perf_counter() < deadline:
+            pass
+
+        assert clock.monotonic() > first
 
 
 class TestWhatCountsAsAClock:

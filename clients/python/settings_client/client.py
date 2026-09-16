@@ -1,6 +1,6 @@
-"""Reading one person's settings from settings-api, correctly, from six services.
+"""Reading one person's settings from settings-api, correctly, from any service.
 
-Everything here exists so that six consuming services do not each get the same four
+Everything here exists so that the consuming services do not each get the same four
 things slightly wrong: caching, revalidation, single-flight, and what to do during an
 outage.
 

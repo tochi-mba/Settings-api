@@ -33,9 +33,17 @@ Two checks then apply, and the second is the one that matters:
    every configured service. That decides which grant is in play.
 2. **The user token's audience must belong to that service's own audience family.**
    `media-tool` may present `media-tool` and `media-tool.jobs`, and nothing else. A token
-   minted for `spotify`, or the person's own `settings`-audience token, is refused with a
-   401. Without this check a static service token plus any user token would read any
-   account.
+   minted for `spotify-api`, or the person's own `settings`-audience token, is refused
+   with a 401. Without this check a static service token plus any user token would read
+   any account.
+
+**One user token, two services, one name.** A consuming service usually presents the same
+user token to keyring's internal surface and to this one. Keyring accepts it only when its
+audience is *exactly* the calling service's name in `KEYRING_SERVICE_TOKENS`, so in a
+deployment a service's `audience_prefix` here must be that same name: `spotify-api`, not
+`spotify`. A mismatch fails closed and looks like a correctly configured service whose every
+call is a 401. This service's test suite deliberately uses a prefix that differs from the
+service name, to prove the two are independent strings in code; do not copy it.
 
 A service may read and write **only the namespaces it was granted**, plus `common`, which
 every service gets. `media-tool` asking for `user` is a 403 with a body that says so.
@@ -68,7 +76,7 @@ during an outage when nobody is looking.
 ## 2. The client, and the four lines
 
 Do not write an HTTP call. Use `clients/python/settings_client`, which handles the four
-things six services would otherwise each get slightly wrong: caching, `If-None-Match`
+things every consuming service would otherwise get slightly wrong: caching, `If-None-Match`
 revalidation, single-flight, and outage behaviour.
 
 ```python
@@ -225,6 +233,28 @@ the service now has two remotes, not one.
 route under `/v1/user`. If the port turns out to need changing, that is a finding worth
 reporting, not a change to make quietly.
 
+**Why user-api is not wired yet: the sweeper has no token.** The adapter sketch above hides
+a problem inside `self._token_for(account_id)`. settings-api answers only when a person's
+token is presented, and user-api's erasure sweeper (`Erasure.sweep_once`) reads
+`erasure_mode` and `grace_days` for every account with forgotten entries from a background
+task, with no request and so no token. A local copy refreshed on each request does not fix
+it: a person who switches to `tombstone` directly in settings-api would not be seen by the
+sweeper until they next called user-api, and in the meantime the sweeper would destroy
+entries they had just asked to keep.
+
+There are two honest ways out, and each changes the port, so choosing is a decision rather
+than wiring:
+
+1. **Decide an entry's fate when it is forgotten.** The forgetting request carries a token,
+   so the purge deadline can be resolved then and stored on the entry, and the sweeper stops
+   reading settings. The cost is that switching to `tombstone` later no longer rescues
+   entries already forgotten.
+2. **Keep `erasure_mode` and `grace_days` authoritative in user-api**, and move only the
+   settings read on the request path (`log_values`, `max_pinned`, `search_default_limit`)
+   to settings-api.
+
+Until one is chosen, user-api keeps `SqlSettingsStore`, and nothing here is half-wired.
+
 Also worth having: a one-shot backfill in `scripts/` pushing existing `user_settings` rows
 into settings-api, idempotent, **skipping rows equal to the resolved default** — because
 storage here is sparse, and a backfill that wrote every row would pin today's defaults for
@@ -326,12 +356,10 @@ mean for my data" once does not answer a differently-shaped version of it.
 
 ### 3.4 media-tool — namespace `media`
 
-> ⚠️ **The media-tool repository was not available in this session.** Everything below is
-> from the implementation plan rather than from reading its code, and the exact attribute
-> names should be confirmed against the repository before wiring. It is the one section
-> here not verified against source.
+Verified against media-tool's `core/config.py`: every attribute named below exists under
+that name, with the default the catalogue entry records.
 
-| Setting | Replaces (per the plan) |
+| Setting | Replaces |
 | --- | --- |
 | `media.artifact_retention_hours` | `artifact_ttl_seconds` |
 | `media.job_retention_hours` | `job_ttl_seconds` |
@@ -442,6 +470,35 @@ compliance**, and there is no setting in this catalogue that would let them.
 misspelled `WSA_*` variable is silently discarded with no error. Every other service in this
 family treats that as a startup error. Worth fixing in the same pass.
 
+### 3.7 environments-api — namespace `environments`
+
+| Setting | Replaces | Ready? |
+| --- | --- | --- |
+| `environments.idle_environment_hours` | `ENVAPI_ENVIRONMENT_IDLE_TTL_SECONDS` | Yes. |
+| `environments.idle_shell_minutes` | `ENVAPI_SHELL_IDLE_TTL_SECONDS` | Yes. |
+| `environments.max_environments_per_profile` | `ENVAPI_MAX_ENVIRONMENTS_PER_PROFILE` | Yes, as the lower of the operator cap and the setting. |
+| `environments.default_shell` | — | *proposed*: one deployment-wide `ENVAPI_SHELL_BINARY` today. |
+| `common.default_profile` | `ENVAPI_DEFAULT_PROFILE` | Yes. |
+
+**Resolve when the environment is created, not when it is reaped.** The reaper runs with no
+request in hand, so it has no user token to present to settings-api. Resolve the
+`environments` namespace in the request that creates the environment, store the resulting
+lifetimes and cap on the environment's record, and let the reaper read the record. A later
+change to the setting then applies to environments created afterwards, which is the same
+rule media-tool follows for job retention.
+
+**The grant uses the name environments-api already calls keyring with.** One user token
+travels to both hubs, so the audience prefix here must equal the service's name in
+`KEYRING_SERVICE_TOKENS`:
+`"environments-api": {"audience_prefix": "environments-api", "namespaces": ["environments"]}`.
+
+**Stays in environments-api:** `allow_network`, `min_sandbox_tier`,
+`max_environments_per_account`, `max_shells_per_environment`, `max_processes_per_shell`,
+every `*_bytes` quota, `max_cpu_seconds`, `reaper_interval_seconds`,
+`shell_close_grace_seconds`, `root`, `operator_accounts`, `api_keys`, and everything
+keyring. The first two are not negotiable, for the same reason SSRF protection is not in
+`search`: **a person cannot choose the machine's exposure.**
+
 ---
 
 ## 4. The audit: what is covered, what is not, and why
@@ -451,8 +508,8 @@ we do not support properly".
 
 ### 4.1 Covered
 
-42 settings across 7 namespaces, listed in [catalogue.md](catalogue.md). Of those, 27 are
-`existing` — a knob the owning service already has, deployment-wide — and 15 are `proposed`
+46 settings across 8 namespaces, listed in [catalogue.md](catalogue.md). Of those, 28 are
+`existing` — a knob the owning service already has, deployment-wide — and 18 are `proposed`
 and say in the generated documentation exactly what change the owning service needs first.
 
 ### 4.2 Correctly left in the owning service
@@ -500,7 +557,6 @@ actually exercise rather than a defensive statement about a collision that could
 
 ### 4.5 Known limitations
 
-- **media-tool was not read.** Its section is from the plan, not from source.
 - **`search.disabled_providers` cannot be honoured yet** without the per-caller provider
   filtering described in §3.6, and it is a `refuse` setting — so a deployment that turns it
   on before that change would be refusing searches for a restriction it cannot apply.

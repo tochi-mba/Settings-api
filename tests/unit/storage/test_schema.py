@@ -24,14 +24,14 @@ from scripts.dump_schema import SNAPSHOT, dump  # noqa: E402 -- after the path i
 
 def test_the_snapshot_matches_what_the_migrations_produce() -> None:
     generated = asyncio.run(dump())
-    assert generated == SNAPSHOT.read_text(), (
+    assert generated == SNAPSHOT.read_text(encoding="utf-8"), (
         "storage/schema.sql is out of step with the migrations: run `make schema` and "
         "commit the diff alongside the migration that changed it"
     )
 
 
 class TestThePromisesTheSchemaMakes:
-    snapshot = SNAPSHOT.read_text()
+    snapshot = SNAPSHOT.read_text(encoding="utf-8")
 
     def test_there_is_no_profile_column_anywhere(self) -> None:
         # ADR-0002, checked against the DDL. A per-profile setting is not discouraged; it

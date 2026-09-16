@@ -235,7 +235,11 @@ class Settings(BaseSettings):
     :func:`check_for_unknown_env_vars` cannot check for typos. Set it as::
 
         SETTINGS_API_SERVICES='{"spotify-api": {"token": "...",
-            "audience_prefix": "spotify", "namespaces": ["spotify"]}}'
+            "audience_prefix": "spotify-api", "namespaces": ["spotify"]}}'
+
+    For a service that also calls keyring's internal surface with the same user token, the
+    prefix must be exactly that service's name in keyring's ``KEYRING_SERVICE_TOKENS``,
+    because keyring accepts the token only when its audience is that name.
 
     Empty by default. A deployment that has configured no services has a working
     person-facing surface and a ``/v1/internal`` that refuses everything, which is the

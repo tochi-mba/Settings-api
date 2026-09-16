@@ -39,7 +39,7 @@ There are forty-one more like it. Today:
 - and there is nowhere a person can look to answer *"what has this system been told about
   how to treat me"*, and nowhere to change it once.
 
-This is that place. **42 settings across 7 namespaces** -- see
+This is that place. **46 settings across 8 namespaces** -- see
 [docs/catalogue.md](docs/catalogue.md).
 
 ## The shape of it

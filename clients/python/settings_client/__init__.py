@@ -11,8 +11,8 @@ Four lines at the call site::
     market = resolved["default_market"]
 
 Everything else -- caching, ``If-None-Match`` revalidation, single-flight, and what to do
-when settings-api is down -- is handled inside, so that six services do not each get the
-same four things slightly wrong.
+when settings-api is down -- is handled inside, so that the consuming services do not
+each get the same four things slightly wrong.
 """
 
 from __future__ import annotations

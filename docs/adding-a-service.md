@@ -150,7 +150,7 @@ In `src/settings_api/domain/catalogue/__init__.py`, add the import and put it in
 ```python
 from settings_api.domain.catalogue import calendar, common, keyring, ...
 
-_MODULES = (common, keyring, user, persona, media, spotify, search, calendar)
+_MODULES = (common, keyring, user, persona, media, spotify, search, environments, calendar)
 ```
 
 The catalogue is assembled and **checked at import**, so a malformed entry is a process
@@ -192,7 +192,7 @@ SETTINGS_API_SERVICES='{
 | --- | --- | --- |
 | the key | the service's name, as it appears in logs and in `set_by` provenance | free-form |
 | `token` | this service's own bearer token | **≥32 characters**, and **never shared with another service** — both are startup errors |
-| `audience_prefix` | the audience family **keyring mints this service's user tokens under** | *not* the service name, and deliberately independent of it. May contain no dot. |
+| `audience_prefix` | the audience family **keyring mints this service's user tokens under** | Independent of the key *in code*. But if the service also presents the same user token to keyring's internal surface, it must equal the service's name in `KEYRING_SERVICE_TOKENS` exactly, because keyring accepts that token only for that audience. May contain no dot. |
 | `namespaces` | which namespaces it may read and write | `common` is added automatically — do not list it. Give it the **narrowest** list that works. |
 
 Three things this configuration is doing, each of which is a security property:

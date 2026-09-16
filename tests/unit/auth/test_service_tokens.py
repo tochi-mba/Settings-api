@@ -1,9 +1,9 @@
 """Which service is calling, decided in constant time with no early return.
 
 A comparison that returned as soon as it found a match would leak, in its timing, roughly
-where in the list the caller sits. The structural test reads the source and asserts there
-is no ``break``; the behavioural ones assert the right grant comes back wherever the
-matching service sits in the mapping.
+where in the list the caller sits. The comparison is the family's shared one; the structural
+test reads its source and asserts there is no ``break``, and the behavioural ones assert the
+right grant comes back wherever the matching service sits in the mapping.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 import inspect
 
 import pytest
+from keyring_client import ServiceAuthenticator as KeyringServiceAuthenticator
 from pydantic import SecretStr
 
 from settings_api.auth.service_tokens import BAD_SERVICE, ServiceAuthenticator
@@ -75,12 +76,13 @@ class TestNoEarlyReturn:
         assert authenticator.identify(FIRST).service == "alpha"
         assert authenticator.identify(LAST).service == "omega"
 
-    def test_the_loop_contains_no_break(self) -> None:
-        # Read rather than timed, because a timing test on a CI box proves nothing. If
-        # somebody adds a `break` to "optimise" the loop, this is what tells them why not.
+    def test_the_shared_comparison_loop_contains_no_break(self) -> None:
+        # Read rather than timed, because a timing test on a CI box proves nothing. The loop
+        # lives in keyring_client now; if somebody adds a `break` there to "optimise" it,
+        # this is what tells them why not, from the service that depends on it.
         code = "\n".join(
             line
-            for line in inspect.getsource(ServiceAuthenticator.identify).splitlines()
+            for line in inspect.getsource(KeyringServiceAuthenticator.identify).splitlines()
             if not line.strip().startswith("#")
         )
         assert "break" not in code
