@@ -3,15 +3,15 @@ name = "settings-api"
 version = "0.1.0"
 description = "One place a person decides how every service in the family behaves for them."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "tochi-mba" }]
 keywords = ["fastapi", "settings", "mcp", "personal-data", "privacy"]
 classifiers = [
     "Private :: Do Not Upload",
     "Framework :: FastAPI",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
 ]
 dependencies = [
@@ -57,7 +57,7 @@ packages = ["src/settings_api"]
 # --------------------------------------------------------------------------------------
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 src = ["src", "tests", "clients/python"]
 
 [tool.ruff.lint]
@@ -167,7 +167,7 @@ convention = "google"
 # Types
 # --------------------------------------------------------------------------------------
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 files = ["src", "tests", "clients/python"]
 mypy_path = "clients/python"
 strict = true

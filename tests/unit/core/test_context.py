@@ -69,7 +69,7 @@ class _TheBlockFailedError(Exception):
     """Raised inside a bound block, to prove the binding is unwound anyway."""
 
 
-def in_a_fresh_context(work: Callable[[], T]) -> T:
+def in_a_fresh_context[T](work: Callable[[], T]) -> T:
     """Run ``work`` with every context variable back at its default.
 
     A synchronous test that calls a ``set_*`` form has no way to unbind it -- that is the
