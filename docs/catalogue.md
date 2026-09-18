@@ -27,23 +27,28 @@ owning service. `existing` means that service already has the knob, deployment-w
 and the note says what the change is. Nothing here ships a setting that silently does
 nothing without saying so.
 
+**Scope** is exclusive. `account` is one value for the person, the same under every
+keyring profile. `profile` is one value per keyring profile; pass `?profile=` to read or
+write it. The default is `account`. A setting in `common` cannot be profile-scoped.
+
 **Owner only** marks the settings a consuming service may not write even while holding the
 person's own token. There are two, and both are ones where the service that would benefit
 from changing them is the service that should not be allowed to.
 
 
-**46 settings across 8 namespaces.**
+**134 settings across 9 namespaces.**
 
 ## Contents
 
-- **`common`** (7) — `timezone`, `locale`, `units`, `time_format`, `default_profile`, `redact_values_in_logs`, `job_retention_hours`
-- **`keyring`** (6) — `session_ttl_days`, `max_sessions`, `email_notifications`, `notify_on_new_session`, `require_reauth_for_credential_changes`, `session_absolute_ttl_days`
+- **`common`** (8) — `timezone`, `locale`, `units`, `time_format`, `default_profile`, `redact_values_in_logs`, `job_retention_hours`, `currency`
+- **`keyring`** (7) — `session_ttl_days`, `max_sessions`, `email_notifications`, `notify_on_new_session`, `require_reauth_for_credential_changes`, `session_absolute_ttl_days`, `notify_on_credential_change`
 - **`user`** (6) — `erasure_mode`, `grace_days`, `log_values`, `default_write_scope`, `max_pinned`, `search_default_limit`
 - **`persona`** (7) — `default_persona`, `recall_default_limit`, `log_values`, `erasure_mode`, `grace_days`, `max_pinned_fields`, `max_pinned_notes`
-- **`media`** (6) — `artifact_retention_hours`, `job_retention_hours`, `concurrent_jobs`, `max_file_gb`, `delete_artifact_after_download`, `preferred_quality`
-- **`spotify`** (4) — `default_market`, `max_batch_size`, `confirm_timeout_seconds`, `job_retention_hours`
-- **`search`** (6) — `default_model`, `search_backend`, `disabled_providers`, `max_content_chars`, `safe_search`, `store_query_history`
-- **`environments`** (4) — `idle_environment_hours`, `idle_shell_minutes`, `max_environments_per_profile`, `default_shell`
+- **`memory`** (7) — `retrieval_limit`, `retrieval_trust_floor`, `write_importance_floor`, `recency_half_life_days`, `consolidation`, `erasure_grace_days`, `block_char_limit`
+- **`lucy`** (76) — `model`, `fallback_model`, `thinking`, `max_thinking_tokens`, `temperature`, `response_style`, `vision_enabled`, `max_context_tokens`, `reserve_percent`, `warn_at_percent`, `compaction_trigger_percent`, `history_turns_kept`, `tool_results_kept`, `max_tool_result_tokens`, `render_read_tokens`, `render_preview_tokens`, `render_total_tokens`, `max_output_tokens_per_turn`, `max_tool_calls_per_turn`, `max_turn_seconds`, `max_llm_turns`, `max_subagent_turns`, `max_steps_per_plan`, `max_parallel_steps`, `step_timeout_seconds`, `plan_timeout_seconds`, `session_token_budget`, `agent_max_depth`, `agent_max_concurrent`, `agent_result_token_cap`, `agent_wall_clock_seconds`, `agent_message_max_chars`, `agent_message_burst`, `permission_mode`, `approval_policy`, `confirm_outward_actions`, `enabled_capabilities`, `disabled_capabilities`, `memory_write_policy`, `memory_retrieval_limit`, `incognito`, `log_message_content`, `input_policy`, `auto_title`, `session_idle_archive_days`, `workspace_retention_hours`, `stream_thinking`, `notify_on_long_turn`, `long_turn_seconds`, `retry_attempts`, `retry_max_seconds`, `downstream_timeout_seconds`, `prompt_feeds_enabled`, `prompt_hide_personal_feeds`, `prompt_allow_unknown_feed_fields`, `feeds_account`, `feeds_persona`, `feeds_music`, `feeds_workspace`, `feeds_research`, `feeds_account_pinned`, `feeds_persona_identity`, `feeds_persona_notes`, `feeds_music_now_playing`, `feeds_music_device`, `feeds_music_shuffled`, `feeds_music_repeat`, `feeds_music_queue_head`, `feeds_workspace_cwd`, `feeds_workspace_shell`, `feeds_workspace_pid`, `feeds_workspace_shells_running`, `feeds_workspace_sandbox`, `feeds_workspace_git_branch`, `feeds_workspace_last_command`, `feeds_research_backend`
+- **`spotify`** (8) — `default_market`, `max_batch_size`, `confirm_timeout_seconds`, `job_retention_hours`, `default_device`, `shuffle_on_play`, `repeat_mode`, `allow_explicit`
+- **`search`** (8) — `default_model`, `search_backend`, `disabled_providers`, `max_content_chars`, `safe_search`, `store_query_history`, `default_result_count`, `recency_days`
+- **`environments`** (7) — `idle_environment_hours`, `idle_shell_minutes`, `max_environments_per_profile`, `default_shell`, `persist_history`, `command_timeout_seconds`, `max_output_bytes`
 
 ## `common`
 
@@ -54,13 +59,13 @@ person would answer it once per service and get it wrong in one of them.
 ``default_profile`` is the one that resolves an existing disagreement rather than
 proposing a new convenience, and it is worth being precise about what that disagreement
 is. spotify-api and web-search-api each carry their own ``keyring_default_profile``,
-defaulting to ``"personal"``; media-tool carries a ``default_profile`` defaulting to
+defaulting to ``"personal"``; another carries a ``default_profile`` defaulting to
 ``"default"``. keyring itself has no notion of a default profile at all -- every one of
 its routes takes the profile as a required path segment with no fallback -- so the
 question "which profile do you mean when I don't say" has, today, three answers and no
 owner. This gives it one.
 
-> **Needs a change in the owning service first:** `timezone`, `locale`, `units`, `time_format`, `redact_values_in_logs`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `timezone`, `locale`, `units`, `time_format`, `redact_values_in_logs`, `currency`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `common.timezone`
 
@@ -69,6 +74,7 @@ owner. This gives it one.
 | | |
 | --- | --- |
 | Type | `str` |
+| Scope | `account` |
 | Default | `UTC` |
 | Bounds | ≤64 chars, must resolve as a timezone |
 | On unavailable | use default |
@@ -86,6 +92,7 @@ Falling back to UTC during an outage shows the right instant in the wrong zone, 
 | | |
 | --- | --- |
 | Type | `str` |
+| Scope | `account` |
 | Default | `en-GB` |
 | Bounds | ≤35 chars, `^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2}|-[0-9]{3})?$` |
 | On unavailable | use default |
@@ -103,6 +110,7 @@ The pattern requires the canonical casing -- lowercase language, title-case scri
 | | |
 | --- | --- |
 | Type | `enum` |
+| Scope | `account` |
 | Default | `metric` |
 | Bounds | `metric` / `imperial` |
 | On unavailable | use default |
@@ -118,6 +126,7 @@ A presentation choice, not a storage one: services record whatever unit the sour
 | | |
 | --- | --- |
 | Type | `enum` |
+| Scope | `account` |
 | Default | `24h` |
 | Bounds | `24h` / `12h` |
 | On unavailable | use default |
@@ -133,10 +142,11 @@ Separate from `locale` on purpose. The two usually agree and a person is entitle
 | | |
 | --- | --- |
 | Type | `str` |
+| Scope | `account` |
 | Default | `personal` |
 | Bounds | ≤64 chars, `^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$` |
 | On unavailable | **refuse** |
-| Origin | existing — Replaces spotify-api's `keyring_default_profile` and web-search-api's `WSA_KEYRING_DEFAULT_PROFILE` (both 'personal'), and media-tool's `default_profile` ('default'). keyring itself has no such notion. |
+| Origin | existing — Replaces spotify-api's `keyring_default_profile` and web-search-api's `WSA_KEYRING_DEFAULT_PROFILE` (both 'personal'), and a third service's `default_profile` ('default'). keyring itself has no such notion. |
 
 A profile is a named set of credentials -- `personal` and `work` can hold different Spotify accounts -- and this says which one is meant by default. The pattern is keyring's own profile-name rule, so a value set here is one keyring will accept.
 
@@ -149,6 +159,7 @@ A profile is a named set of credentials -- `personal` and `work` can hold differ
 | | |
 | --- | --- |
 | Type | `bool` |
+| Scope | `account` |
 | Default | `true` |
 | Bounds | — |
 | On unavailable | use default |
@@ -166,17 +177,36 @@ Turning it off is a debugging affordance for somebody diagnosing their own accou
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `1` |
 | Bounds | 0-168, operator-clampable |
 | On unavailable | use default |
-| Origin | existing — The same knob in three services with three spellings: media-tool's `job_ttl_seconds`, spotify-api's `job_ttl_seconds` and web-search-api's `WSA_JOB_RETENTION_SECONDS`. All three default to one hour. |
+| Origin | existing — The same knob in three services with three spellings: spotify-api's `job_ttl_seconds`, web-search-api's `WSA_JOB_RETENTION_SECONDS`, and a third service's own `job_ttl_seconds`. All three default to one hour. |
 | Safe to fall back to | `1` |
 
 The record, not the result: what was asked for, when, whether it worked and why not. Three services keep one of these and each had its own deployment-wide number, so this is the general answer for all of them.
 
-A namespace may override it -- `media.job_retention_hours` does, because a download job's record sits beside a file on disk, and `spotify.job_retention_hours` does, because spotify-api's own ceiling is 24 hours rather than a week. Where a namespace has its own, that one wins; where it does not, this is what the service reads. That override is the reason `common` is merged *underneath* a namespace rather than over it.
+A namespace may override it -- `spotify.job_retention_hours` does, because spotify-api's own ceiling is 24 hours rather than a week, and a namespace whose job leaves a file on a shared disk has its own reason to. Where a namespace has its own, that one wins; where it does not, this is what the service reads. That override is the reason `common` is merged *underneath* a namespace rather than over it.
 
 One hour is the short end and is therefore the safe fallback: an outage that landed here forgets somebody's job record sooner than they asked, not later.
+
+#### `common.currency`
+
+*Which currency to state a cost in, as an ISO 4217 code such as GBP or EUR.*
+
+| | |
+| --- | --- |
+| Type | `str` |
+| Scope | `account` |
+| Default | `null` |
+| Bounds | ≤3 chars, `^[A-Z]{3}$`, nullable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. Every service that quotes a cost today quotes it in whatever it was billed in. |
+| Safe to fall back to | `null` |
+
+Anything in the family that puts a number on what something cost -- a token budget, a spend warning, a subscription -- says it in this. Null means derive it from `locale`, which is right often enough to be the default and wrong for everybody who lives in one country and is billed in another.
+
+Presentation only. Nothing is converted, recharged or recorded differently because of it, and a service that cannot convert says what it was billed in rather than guessing a rate. Null is conservative because it changes nothing: an outage that landed on it shows the same number in the same place as today.
 
 ## `keyring`
 
@@ -192,7 +222,7 @@ that could turn it off would be a service that could disarm the check standing b
 and the credentials it is about to ask for. It is ``owner_writable_only`` for exactly that
 reason -- see ADR-0004.
 
-> **Needs a change in the owning service first:** `email_notifications`, `notify_on_new_session`, `require_reauth_for_credential_changes`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `email_notifications`, `notify_on_new_session`, `require_reauth_for_credential_changes`, `notify_on_credential_change`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `keyring.session_ttl_days`
 
@@ -201,6 +231,7 @@ reason -- see ADR-0004.
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `14` |
 | Bounds | 1-90, operator-clampable |
 | On unavailable | use default |
@@ -218,6 +249,7 @@ The fallback is worth being honest about, because 14 is not the safest value -- 
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `20` |
 | Bounds | 1-20, operator-clampable |
 | On unavailable | use default |
@@ -235,6 +267,7 @@ The maximum is the operator's cap rather than a number with meaning of its own. 
 | | |
 | --- | --- |
 | Type | `bool` |
+| Scope | `account` |
 | Default | `true` |
 | Bounds | — |
 | On unavailable | use default |
@@ -252,6 +285,7 @@ On is the conservative value and is therefore the one an outage lands on: a noti
 | | |
 | --- | --- |
 | Type | `bool` |
+| Scope | `account` |
 | Default | `true` |
 | Bounds | — |
 | On unavailable | use default |
@@ -269,6 +303,7 @@ Subordinate to `email_notifications`: with that off, this changes nothing.
 | | |
 | --- | --- |
 | Type | `bool` |
+| Scope | `account` |
 | Default | `true` |
 | Bounds | — |
 | On unavailable | **refuse** |
@@ -286,6 +321,7 @@ Two things make this the most protected entry in the catalogue. It is **owner-wr
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `90` |
 | Bounds | 1-365, operator-clampable |
 | On unavailable | use default |
@@ -295,6 +331,24 @@ Two things make this the most protected entry in the catalogue. It is **owner-wr
 `session_ttl_days` ends a session that goes unused; this ends one that never does. Without it a session used daily would live for ever, and 're-authenticate occasionally' would be a thing the system never actually asked for.
 
 keyring refuses an absolute ceiling below its idle timeout, so a person setting this below `session_ttl_days` will have that write refused by keyring rather than by this service -- the two cannot be cross-validated here, because a catalogue entry is checked on its own and the other value may not even be set. It is a real edge and the honest place to catch it is the service that owns the rule.
+
+#### `keyring.notify_on_credential_change`
+
+*Whether to say so when a stored credential is added, replaced or removed.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `account` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | **proposed** — New here. keyring records a credential write in its audit log and sends nothing. |
+| Safe to fall back to | `true` |
+
+The counterpart to `notify_on_new_session`, for the event a step further in: somebody already inside the account taking or replacing the keys to everything else. A credential write is rare and deliberate, so a notice about one is almost never noise, and the one time it is unexpected it is the only warning there will be.
+
+Subordinate to `email_notifications`: with that off, this changes nothing. On is conservative and is what an outage lands on -- an unwanted email is an annoyance, and an unnoticed credential replacement is the failure it exists to catch.
 
 ## `user`
 
@@ -319,6 +373,7 @@ wonder why the most consequential setting here is not the most protected one.
 | | |
 | --- | --- |
 | Type | `enum` |
+| Scope | `account` |
 | Default | `grace` |
 | Bounds | `grace` / `immediate` / `tombstone` |
 | On unavailable | use default |
@@ -338,6 +393,7 @@ Both `grace` and `tombstone` are safe to fall back to, because neither destroys 
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `30` |
 | Bounds | 0-365, operator-clampable |
 | On unavailable | use default |
@@ -355,6 +411,7 @@ This setting is the reason storage here is sparse rather than dense. user-api sh
 | | |
 | --- | --- |
 | Type | `bool` |
+| Scope | `account` |
 | Default | `false` |
 | Bounds | — |
 | On unavailable | use default |
@@ -372,6 +429,7 @@ Turned on, the old value is kept and is purged along with its entry, so the prom
 | | |
 | --- | --- |
 | Type | `str` |
+| Scope | `account` |
 | Default | `null` |
 | Bounds | ≤32 chars, `^[a-z][a-z0-9_]*$`, nullable |
 | On unavailable | use default |
@@ -389,6 +447,7 @@ It can only ever *narrow*: a token still cannot write to a scope it does not gra
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `40` |
 | Bounds | 1-40, operator-clampable |
 | On unavailable | use default |
@@ -406,6 +465,7 @@ A person may lower the operator's cap and may never raise it, which is the gener
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `20` |
 | Bounds | 1-100, operator-clampable |
 | On unavailable | use default |
@@ -442,6 +502,7 @@ has answered the question once does not have to answer a differently-shaped vers
 | | |
 | --- | --- |
 | Type | `str` |
+| Scope | `profile` |
 | Default | `null` |
 | Bounds | ≤64 chars, `^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$`, nullable |
 | On unavailable | use default |
@@ -459,6 +520,7 @@ Null is the conservative value, and for an unusual reason: falling back to null 
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `profile` |
 | Default | `20` |
 | Bounds | 1-100, operator-clampable |
 | On unavailable | use default |
@@ -476,6 +538,7 @@ Marked as existing rather than proposed because the knob is written down in pers
 | | |
 | --- | --- |
 | Type | `bool` |
+| Scope | `account` |
 | Default | `false` |
 | Bounds | — |
 | On unavailable | use default |
@@ -493,6 +556,7 @@ Off is conservative: a log that recorded nothing can be reconstructed by asking,
 | | |
 | --- | --- |
 | Type | `enum` |
+| Scope | `account` |
 | Default | `grace` |
 | Bounds | `grace` / `immediate` / `tombstone` |
 | On unavailable | use default |
@@ -512,6 +576,7 @@ As in user-api, a change here must never be retroactive.
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `30` |
 | Bounds | 0-365, operator-clampable |
 | On unavailable | use default |
@@ -529,6 +594,7 @@ Thirty days to match user-api, for the same reason the vocabulary matches: two s
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `20` |
 | Bounds | 1-20, operator-clampable |
 | On unavailable | use default |
@@ -546,6 +612,7 @@ The same decision as `user.max_pinned`, and spelled the same way on purpose. A p
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `20` |
 | Bounds | 1-20, operator-clampable |
 | On unavailable | use default |
@@ -556,121 +623,1500 @@ The other half of the always-load block. Separate from `max_pinned_fields` becau
 
 Somebody who wants a persona that remembers what it is but not every episode lowers this and leaves the fields alone, which is not expressible with one combined number.
 
-## `media`
+## `memory`
 
-media-tool runs headless-Chromium downloads per account and keeps the artifacts on disk
-until a TTL expires. "How long do my files sit on that machine" is about as clearly the
-person's question as anything in this catalogue, and today it is one number for everybody.
+These are the settings a person would actually want to find. Not "how is memory
+implemented" but "what do you keep, how long do you keep it, and how do I get rid of it" --
+which is the same set of questions user-api's namespace answers about its own records, and
+they are spelled the same way here so that somebody who has answered one does not have to
+recognise a differently-shaped version of the other.
 
-``preferred_quality`` is the entry that needs the most work in the owning service before
-it does anything: media-tool's ``MediaQuality`` has no quality concept at all today, so
-adopting it means its query type gains a field and its downloader learns to pass it on.
-The generated catalogue documentation says so under that entry, because a setting that
-looks like it works and does not is worse than an absent one.
+Two entries carry weight beyond their size. ``erasure_grace_days`` is the window in which a
+forgotten memory can still be brought back; after it, the row is deleted and its journal
+pages are overwritten. And ``retrieval_trust_floor`` decides whether anything an assistant
+merely *worked out* about somebody may be used without being confirmed -- the difference
+between a store of what you said and a store of what was inferred from it.
 
-> **Needs a change in the owning service first:** `delete_artifact_after_download`, `preferred_quality`. Until that change lands, setting these stores the value and changes no behaviour.
+Most entries are ``PROPOSED``: memory-api reads its own configuration today and has no
+per-account settings seam. ``docs/catalogue.md`` repeats that per entry, so nobody ships a
+setting believing it already does something.
 
-#### `media.artifact_retention_hours`
+> **Needs a change in the owning service first:** `retrieval_limit`, `retrieval_trust_floor`, `write_importance_floor`, `consolidation`. Until that change lands, setting these stores the value and changes no behaviour.
 
-*How long a downloaded file stays on the server before it is deleted.*
+#### `memory.retrieval_limit`
 
-| | |
-| --- | --- |
-| Type | `int` |
-| Default | `1` |
-| Bounds | 0-720, operator-clampable |
-| On unavailable | use default |
-| Origin | existing — media-tool's `artifact_ttl_seconds`, default one hour. |
-| Safe to fall back to | `1` |
-
-Zero means delete it as soon as the job that produced it is finished with it. The maximum is thirty days, and a deployment with a small disk narrows that in policy rather than by asking people to be considerate.
-
-One hour is the conservative value here precisely because it is the *shortest* of the sensible ones: an outage that fell back to it deletes somebody's file sooner than they asked, which is recoverable by downloading again, rather than later than they asked, which is a file sitting on a shared machine for a month because a service was down.
-
-#### `media.job_retention_hours`
-
-*How long the record of a finished job stays readable before it is reaped.*
+*How many memories one retrieval may return.*
 
 | | |
 | --- | --- |
 | Type | `int` |
-| Default | `1` |
-| Bounds | 0-168, operator-clampable |
+| Scope | `account` |
+| Default | `12` |
+| Bounds | 0-100, operator-clampable |
 | On unavailable | use default |
-| Origin | existing — media-tool's `job_ttl_seconds`, default one hour. |
-| Safe to fall back to | `1` |
+| Origin | **proposed** — New here. memory-api takes a limit per request; this is the default it should use. |
+| Safe to fall back to | `12` |
 
-The job record, not the file: what was asked for, when, whether it worked and why not. Separate from `artifact_retention_hours` because the two answer different questions -- a person may want the file gone within the hour and the record of having asked for it kept for a week.
+Zero does not make the assistant forget you: it still sees the topic index, which is the list of subjects it knows something about. It simply brings nothing in until asked. Higher numbers cost context and can bury a relevant memory among merely related ones.
 
-The record names a URL somebody chose to download, so it is not neutral metadata; one hour is the short end, and it is the end an outage lands on.
+#### `memory.retrieval_trust_floor`
 
-#### `media.concurrent_jobs`
-
-*How many downloads this person may have running at once.*
-
-| | |
-| --- | --- |
-| Type | `int` |
-| Default | `5` |
-| Bounds | 1-5, operator-clampable |
-| On unavailable | use default |
-| Origin | existing — media-tool's `max_active_jobs_per_account`. |
-| Safe to fall back to | `5` |
-
-The maximum is the operator's own per-account cap rather than a number with meaning of its own; a person may lower it and never raise it. Lowering it is how somebody keeps their own work from queueing behind itself on a busy box.
-
-Falling back to the cap during an outage means media-tool behaves exactly as it does today, which is why this is safe to land on: nothing about it is a restriction somebody expressed.
-
-#### `media.max_file_gb`
-
-*The largest single download this person wants attempted.*
-
-| | |
-| --- | --- |
-| Type | `int` |
-| Default | `2` |
-| Bounds | 1-20, operator-clampable |
-| On unavailable | use default |
-| Origin | existing — media-tool's `max_file_bytes`, expressed in whole gigabytes. |
-| Safe to fall back to | `2` |
-
-Gigabytes rather than bytes, because the byte count is a machine's unit and this is a person's choice. media-tool converts.
-
-Lowering it is a guard against an assistant misreading a link and spending an hour pulling something nobody wanted. The operator's own ceiling still applies on top, so this narrows and never widens.
-
-#### `media.delete_artifact_after_download`
-
-*Whether to delete a file the moment it has been fetched once.*
-
-| | |
-| --- | --- |
-| Type | `bool` |
-| Default | `false` |
-| Bounds | — |
-| On unavailable | use default |
-| Origin | **proposed** — New here. media-tool deletes on TTL only. |
-| Safe to fall back to | `false` |
-
-For people who treat the server as a pipe rather than as storage: the artifact exists for exactly as long as it takes to collect it.
-
-Off is the conservative value even though on is the one that deletes sooner, and the reason is that this setting cannot extend anything. With it off, `artifact_retention_hours` still applies and the file still goes; with it on and a flaky connection, a half-finished download has nothing left to retry against. An outage falling back to off delays a deletion that is going to happen anyway.
-
-#### `media.preferred_quality`
-
-*What quality to fetch when the request does not ask for one.*
+*How much an assistant may rely on, from what you said to what it worked out.*
 
 | | |
 | --- | --- |
 | Type | `enum` |
-| Default | `best` |
-| Bounds | `best` / `1080p` / `720p` / `480p` / `audio_only` |
+| Scope | `account` |
+| Default | `inferred` |
+| Bounds | `stated` / `observed` / `inferred` |
+| On unavailable | **refuse** |
+| Origin | **proposed** — New here. memory-api already excludes `untrusted` until it is confirmed. |
+
+`stated` uses only what you told it. `observed` adds what it saw directly. `inferred` adds what it worked out, which is the most useful and the most likely to be wrong about you.
+
+Nothing distilled from a web page or a document is ever retrieved at any setting until somebody confirms it, and that is not configurable: a memory store is a place an attacker would like to write, and permanence is what makes it worth attacking.
+
+It refuses rather than falling back, because there is no safe guess: landing below what you chose loses memories you wanted used, and landing above uses guesses you did not agree to. Retrieving nothing for one turn is recoverable; quietly widening what an assistant relies on is not.
+
+#### `memory.write_importance_floor`
+
+*How significant something has to be before it is worth remembering.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `3` |
+| Bounds | 1-10, operator-clampable |
+| On unavailable | **refuse** |
+| Origin | **proposed** — New here. |
+
+Low keeps almost everything and makes the store noisy. High keeps only what matters and quietly loses things you would have wanted.
+
+It refuses rather than falling back: writing nothing during an outage is recoverable, and writing down more about a person than they agreed to is not.
+
+#### `memory.recency_half_life_days`
+
+*How quickly an unused memory stops being offered first.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `30` |
+| Bounds | 1-3650, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here, and the furthest from working: media-tool's `MediaQuery` has no quality concept at all, so this needs a field on that type and a downloader that passes it on before it does anything. |
-| Safe to fall back to | `best` |
+| Origin | existing — memory-api has a 30-day half-life compiled in (`store/sql.py`). |
+| Safe to fall back to | `30` |
 
-`audio_only` is the interesting one: for somebody who mostly wants talks and podcasts, it is the difference between a gigabyte and thirty megabytes, and between a minute and five.
+Ranking, not deletion: nothing is removed by getting old, it simply stops coming up before newer things. The clock runs from when a memory was last *used*, not when it was written, so a stable fact you rely on constantly stays near the top while a one-off from yesterday sinks.
 
-`best` is conservative because it is what media-tool does today, so falling back to it during an outage changes nothing about anybody's downloads. It is also the *expensive* choice, which is worth saying plainly: the safe fallback here costs bandwidth rather than privacy, and that is the right way round.
+#### `memory.consolidation`
+
+*When an assistant tidies what it has remembered.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `account` |
+| Default | `on_session_end` |
+| Bounds | `never` / `on_session_end` / `continuous` |
+| On unavailable | **refuse** |
+| Origin | **proposed** — New here. The pass that tidies memory does not exist yet. |
+
+Consolidation merges near-duplicates, writes better summaries for a subject, and decides that two things it learned separately are the same thing. `continuous` keeps the store tidiest and costs the most; `never` leaves it exactly as written.
+
+It never runs while you are waiting for an answer -- always in the background, because a tidy-up on the response path is a slower reply for no benefit you can see.
+
+It refuses rather than falling back. Consolidation rewrites memories, and rewriting somebody's memories without being able to read whether they wanted that is not a safe guess in either direction.
+
+#### `memory.erasure_grace_days`
+
+*How long a forgotten memory can still be brought back.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `30` |
+| Bounds | 0-365, operator-clampable |
+| On unavailable | **refuse** |
+| Origin | existing — memory-api has MEMORY_FORGET_GRACE_SECONDS, default 30 days. |
+
+Forgetting hides a memory immediately. This is how long you have to change your mind before it is deleted for good, its search entry removed and the journal pages that held it overwritten.
+
+Zero erases at the next sweep. It refuses rather than falling back during an outage, because both directions are wrong: guessing shorter destroys something recoverable, and guessing longer keeps something a person asked to be rid of.
+
+#### `memory.block_char_limit`
+
+*How large the always-in-context block may be.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `16000` |
+| Bounds | 256-24000, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — memory-api's BlockInput defaults char_limit to 16000, ceiling 24000. |
+| Safe to fall back to | `16000` |
+
+The block is the handful of sentences an assistant carries in every single conversation. It is small on purpose: everything in it is paid for on every turn, and a block that grows without limit is a tax on every reply.
+
+## `lucy`
+
+Everything here is a knob with a small, checkable value: a number, a flag, an enum, a short
+list. That constraint is the reason this namespace can exist at all. A setting is at most
+4096 bytes and has to be validated against bounds, so *how Lucy should write* cannot live
+here -- a prompt override is prose, it has no bounds, and a bad one is not a value out of
+range but a voice that sounds wrong. Behaviour like that belongs in a persona note, which
+is already the family's home for "lessons about how to behave in this profile". The
+division is not arbitrary: knobs here, character there.
+
+Almost every entry used to be ``PROPOSED``. The hub now reads the turn limits, the
+model knobs, helper depth and concurrency, memory-write policy, prompt-feed toggles,
+new-session defaults (including incognito), whether reasoning is streamed, whether
+message bodies may appear in the process log, the context window and reclamation knobs,
+and the refuse keys on every turn. Entries that still say ``PROPOSED`` are ones the hub
+stores in policy or catalogue but has not yet made the live behaviour of a conversation.
+``docs/catalogue.md`` repeats the origin per entry so that nobody ships a setting
+believing it does something it does not.
+
+Two entries deserve reading together. ``permission_mode`` decides whether Lucy asks before
+acting, and ``approval_policy`` decides what it may never stop asking about. They are
+separate because the first is a preference and the second is a floor: a person who turns
+everything to ``auto`` is still protected from an irreversible action they never saw,
+because the floor is not theirs to lower.
+
+## Why this namespace is a package
+
+Every other namespace here is one module, because a namespace is a table and a table reads
+best in one file. This one has enough entries with a paragraph each that that is no longer
+true, and it is past the family's limit of a thousand lines in a file.
+
+The split is by what a person is deciding rather than by length, so that the group a
+reader wants is the group they open:
+
+- :mod:`~settings_api.domain.catalogue.lucy.model` -- which model answers and how it sounds
+- :mod:`~settings_api.domain.catalogue.lucy.context` -- the window, and what is reclaimed first
+- :mod:`~settings_api.domain.catalogue.lucy.limits` -- what one turn or plan may do
+- :mod:`~settings_api.domain.catalogue.lucy.helpers` -- the assistants Lucy starts beneath itself
+- :mod:`~settings_api.domain.catalogue.lucy.permissions` -- what it may do without asking
+- :mod:`~settings_api.domain.catalogue.lucy.recall` -- what it keeps about you afterwards
+- :mod:`~settings_api.domain.catalogue.lucy.sessions` -- the conversation as a thing of its own
+- :mod:`~settings_api.domain.catalogue.lucy.reliability` -- waiting on a sibling that is slow
+- :mod:`~settings_api.domain.catalogue.lucy.feeds` -- what reaches the prompt at all
+
+Each of those says in its own docstring why its group is a group, which is the reasoning
+that had nowhere to live while this was one file. ``SETTINGS`` below joins them in that
+order, and the order is documentation rather than behaviour: it is what somebody reads
+down in ``docs/catalogue.md``, starting with the model because that is what they came for
+and ending with the prompt-feed toggles over one mechanism because nobody comes for those.
+
+A package satisfies the assembler exactly as a module does -- it offers ``NAMESPACE`` and
+``SETTINGS``, which is the whole of the ``NamespaceModule`` protocol -- so nothing in
+``_MODULES`` next door knows this happened.
+
+> **Needs a change in the owning service first:** `fallback_model`, `max_thinking_tokens`, `vision_enabled`, `agent_wall_clock_seconds`, `agent_message_max_chars`, `agent_message_burst`, `confirm_outward_actions`, `enabled_capabilities`, `auto_title`, `session_idle_archive_days`, `workspace_retention_hours`, `notify_on_long_turn`, `long_turn_seconds`, `retry_attempts`, `retry_max_seconds`. Until that change lands, setting these stores the value and changes no behaviour.
+
+#### `lucy.model`
+
+*Which model answers, written as provider:model.*
+
+| | |
+| --- | --- |
+| Type | `str` |
+| Scope | `profile` |
+| Default | `anthropic:claude-opus-5` |
+| Bounds | ≤128 chars, `^[a-z0-9][a-z0-9-]*:[A-Za-z0-9][A-Za-z0-9._-]*$` |
+| On unavailable | use default |
+| Origin | existing — The hub uses this as the session default when a conversation does not name one. |
+| Safe to fall back to | `anthropic:claude-opus-5` |
+
+Changing this changes how a conversation reads and what it costs. It is safe to fall back to the default during an outage: a conversation in a different model's voice is surprising, not harmful, and the alternative is refusing to answer at all.
+
+#### `lucy.fallback_model`
+
+*Which model to try when the chosen one is unavailable, as provider:model.*
+
+| | |
+| --- | --- |
+| Type | `str` |
+| Scope | `profile` |
+| Default | `null` |
+| Bounds | ≤128 chars, `^[a-z0-9][a-z0-9-]*:[A-Za-z0-9][A-Za-z0-9._-]*$`, nullable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. The hub fails the turn when the chosen model is unavailable. |
+| Safe to fall back to | `null` |
+
+Null means there is no second choice: if `model` cannot be reached the turn fails and says so. Naming one here means an outage at one provider becomes a reply in a different voice rather than no reply.
+
+Worth naming a model from a different provider, since the failure this covers is usually the provider rather than the model. Lucy says which model answered whenever it is not the one you chose -- a silent substitution would leave you judging one model by another's work.
+
+Null is conservative because it is the choice that does nothing: falling back to it during an outage cannot send a conversation to a provider you never named.
+
+#### `lucy.thinking`
+
+*How much working-out the model is asked to do on an ordinary turn.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `medium` |
+| Bounds | `off` / `minimal` / `low` / `medium` / `high` |
+| On unavailable | use default |
+| Origin | existing — The hub sends this as the provider thinking effort on each model request. |
+| Safe to fall back to | `off`, `minimal`, `low`, `medium` |
+
+`off` skips it. `high` spends tokens on hard plans. This is not a prompt override and does not change who Lucy is; a persona note still wins on voice.
+
+`high` is left out of the conservative set because it is the expensive end. An outage that landed on `medium` spends less than a person who chose `high`, never more, which is the direction a fallback should fail in.
+
+#### `lucy.max_thinking_tokens`
+
+*A hard ceiling on the working-out for one turn. Zero means the effort level decides.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `0` |
+| Bounds | 0-200000, operator-clampable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. The hub asks for an effort level and sets no token ceiling. |
+| Safe to fall back to | `0` |
+
+`thinking` says how hard to work in the provider's own vocabulary; this puts a number on it. Zero leaves the effort level to choose, which is the ordinary case and the one to leave alone.
+
+A number is for somebody who has watched `high` spend twenty thousand tokens deciding something and wants the option kept without the bill. It is a ceiling and not a target: a turn that needs less still spends less.
+
+Zero is conservative because it is what happens today. It is also the *unbounded* value, which is unusual for this catalogue and worth saying plainly: the safe fallback here costs tokens rather than anything that cannot be undone.
+
+#### `lucy.temperature`
+
+*How varied the model's wording is, in hundredths: 100 means 1.0.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `100` |
+| Bounds | 0-200 |
+| On unavailable | use default |
+| Origin | existing — The hub sends temperature as hundredths divided by 100. |
+| Safe to fall back to | `100` |
+
+Hundredths rather than a decimal, because a setting value here is a whole number, a flag, a string or a short list and nothing else -- 0 is 0.0 and 200 is 2.0. The provider's own default is 1.0, which is what 100 means and what this sends.
+
+Low makes repeated questions get near-identical answers and makes the writing flatter. High makes it more varied and more likely to wander. It changes the wording rather than the reasoning: `thinking` is the knob for how hard the model works, and this is the knob for how it sounds while doing it.
+
+#### `lucy.response_style`
+
+*How much Lucy says when it is not asked to be short.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `natural` |
+| Bounds | `brief` / `natural` / `thorough` |
+| On unavailable | use default |
+| Origin | existing — The hub appends a length instruction to the behaviour section when this is not natural. |
+| Safe to fall back to | `natural` |
+
+`brief` answers and stops. `thorough` shows its reasoning and its alternatives. This is a default, not a rule: asking for one or the other in a conversation still wins.
+
+#### `lucy.vision_enabled`
+
+*Whether images in a message may be sent to the model at all.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | **refuse** |
+| Origin | **proposed** — The hub reads this into the turn policy. Image turns are not yet refused when it cannot be confirmed; only disabled_capabilities and approval_policy block the whole turn. |
+
+On, a screenshot or a photo you attach goes to the provider along with the text. Off, it is never sent: Lucy is told an image was attached and that it may not look at it, which is a better failure than quietly answering about text it could only half understand.
+
+**This refuses rather than falling back.** On is the default because it is how the assistant works, so landing on it during an outage would send a picture to a provider somebody had explicitly decided should not receive their pictures -- and nobody would find out, because the turn would succeed. A refused turn is one you can retry; a screenshot of a document already sent is not recoverable. The refusal only bites on a turn that actually carries an image.
+
+#### `lucy.max_context_tokens`
+
+*How much context one turn may use before Lucy starts reclaiming room.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `200000` |
+| Bounds | 8000-1000000, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's band allocator takes this as the window; shares are fractions of it. |
+| Safe to fall back to | `200000` |
+
+The bands are shares of this number, so lowering it makes every band smaller together rather than starving one of them. Set below what the model actually supports to spend less; setting it above only wastes the reserve.
+
+#### `lucy.reserve_percent`
+
+*What share of the window is kept empty for the reply and one more result.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `13` |
+| Bounds | 5-40, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub rescales written bands from this reserve through shares_for(). |
+| Safe to fall back to | `13` |
+
+The reserve is never written to. It is the room this turn's answer needs, plus enough for one large tool result to arrive without evicting the memory that says who you are.
+
+Lowering it hands the room to history and tool results, and pays for it the first time a long answer meets a big result at the end of a full conversation. Raising it is what somebody does when replies keep being cut short. Every other band is a share of what is left, so this number moves all of them together.
+
+#### `lucy.warn_at_percent`
+
+*How full the window gets before Lucy says so.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `60` |
+| Bounds | 10-95, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub emits a context notice at this fullness; dropping starts at the compact trigger. |
+| Safe to fall back to | `60` |
+
+A notice rather than an action: nothing is reclaimed at this point, you are simply told the room is going. It is worth having separately from `compaction_trigger_percent` because the useful moment to hear about it is before the summarising happens, while finishing the thought or starting a fresh session is still your choice rather than something done for you.
+
+Set it above the compaction trigger and you will be warned about a compaction that has already happened. Set it very low and every long conversation nags.
+
+#### `lucy.compaction_trigger_percent`
+
+*How full the window gets before a conversation is summarised.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `72` |
+| Bounds | 50-90, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub auto-compacts a live turn once it crosses this share of the window. |
+| Safe to fall back to | `72` |
+
+The ceiling is 90 on purpose, and the default sits well below it. Quality is already degrading by ninety percent full, and at ninety-five there is no room left for the summarising call itself -- so waiting longer does not save a summary, it loses one.
+
+#### `lucy.history_turns_kept`
+
+*How many recent exchanges are never summarised away.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `4` |
+| Bounds | 0-100, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's auto-compact keeps this many newest turns verbatim. |
+| Safe to fall back to | `4` |
+
+Compaction replaces old exchanges with a summary of them. This is the tail it may not touch: the last few turns stay verbatim, because a summary of what you said thirty seconds ago is how an assistant loses the thread of the thing it is currently doing.
+
+Raising it keeps more of the recent conversation exact and leaves less room for everything else. Zero lets compaction summarise right up to the current turn, which is the cheapest and the most likely to produce a reply that has subtly misremembered the last thing you asked for.
+
+#### `lucy.tool_results_kept`
+
+*How many recent tool results survive reclamation in full.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `3` |
+| Bounds | 0-50, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's reclamation ladder keeps this many newest unprotected tool results. |
+| Safe to fall back to | `3` |
+
+Tool results are the largest band and the first one reclaimed, and the one Lucy is most likely to need again is the one that just arrived. This is the floor under that: however tight the window gets, this many of the newest results are kept whole rather than shortened to a reference.
+
+Zero means everything competes on cost alone, which reclaims the most room and occasionally throws away the file Lucy was halfway through reading. Higher protects more and leaves less for the conversation itself.
+
+#### `lucy.max_tool_result_tokens`
+
+*How large one tool result may be before it is spilled instead of inlined.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `25000` |
+| Bounds | 1000-100000, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub spills a tool result past this many tokens and keeps the rest by reference. |
+| Safe to fall back to | `25000` |
+
+A result over this goes to the workspace and the model gets a reference and a head instead. The number is a judgement about where reading the whole thing stops being worth what it costs: one forty-thousand-token result evicts the pinned memory that tells Lucy who you are.
+
+Raising it keeps more in front of the model and reclaims the room from somewhere else. Lowering it spills sooner, which costs a round trip when the answer really was in the middle of the file. Nothing is lost either way -- a spilled result is still on disk and still fetchable -- so falling back to the designed value during an outage costs a little context and no information.
+
+#### `lucy.render_read_tokens`
+
+*How much of a single read result the model is shown.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `2000` |
+| Bounds | 100-20000, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's result formatter reads this as the full-read budget. |
+| Safe to fall back to | `2000` |
+
+One of three budgets the result formatter works to. This is the full read: when Lucy asks for a file or a page, this is how much of it comes back before the rest becomes a reference.
+
+Raising it means fewer follow-up reads and a bigger prompt on every turn that did one. Lowering it is the right move for somebody working with large files who would rather Lucy searched than skimmed. Nothing is lost at any value -- the remainder is still fetchable -- which is why landing on the designed value during an outage costs a round trip and no information.
+
+#### `lucy.render_preview_tokens`
+
+*How much of a previewed result the model is shown.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `400` |
+| Bounds | 50-5000, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's result formatter reads this as the preview budget. |
+| Safe to fall back to | `400` |
+
+The small budget, and small on purpose. A preview is what comes back when Lucy listed forty things and needs to know *which* of them to look at properly; spending a read's worth of tokens on each of forty previews is how a listing fills the window.
+
+Raise it when Lucy keeps picking the wrong item out of a list and having to go back. Keep it low when the lists are long and the answer is usually obvious from a title.
+
+#### `lucy.render_total_tokens`
+
+*How much of the window one plan's results may take in total.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `8000` |
+| Bounds | 500-100000, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's result formatter reads this as the total budget for one plan. |
+| Safe to fall back to | `8000` |
+
+The ceiling over the other two: twenty steps that each render inside the read budget still have to share this. Once it is spent the remaining results are rendered as references only, and Lucy is told that is what happened.
+
+This is the number that decides whether a wide plan crowds out the conversation it was meant to serve. Raising it buys detail at the cost of history; lowering it keeps more of what you said and makes Lucy fetch more deliberately.
+
+#### `lucy.max_output_tokens_per_turn`
+
+*How much Lucy may generate in a single reply.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `8000` |
+| Bounds | 256-128000, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub sends this as max_output_tokens on each model request. |
+| Safe to fall back to | `8000` |
+
+The ceiling on one answer, counted in tokens the model writes. Raising it lets a long piece of work come back whole instead of in pieces; lowering it is how somebody says 'answer me, do not write me an essay', and it is the cheapest single lever on what a conversation costs.
+
+A reply that reaches the ceiling stops mid-sentence and says so, so the failure is visible and the next turn can continue. Falling back to the default during an outage spends less than anybody who raised it and truncates a reply for anybody who did -- both are recoverable by asking again, which is why this falls back rather than refusing.
+
+#### `lucy.max_tool_calls_per_turn`
+
+*How many tool calls one turn may make before it has to stop and report.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `60` |
+| Bounds | 1-500, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's turn budget reads this as max_tool_calls. |
+| Safe to fall back to | `60` |
+
+Counted across the whole turn rather than per plan, so a turn cannot get past it by submitting six plans of ten. When it is reached the turn ends and says what it did and what it did not get to, rather than failing.
+
+Lower is a shorter leash: good for a conversation, frustrating for a piece of work that genuinely needs fifty reads. Raising it is how an unattended task gets to finish, and it is also how an unattended task gets expensive. Falling back to the designed value spends no more than the system spends today.
+
+#### `lucy.max_turn_seconds`
+
+*A wall-clock ceiling on one whole turn. Zero means no ceiling.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `0` |
+| Bounds | 0-86400, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's turn budget reads this as max_seconds. Zero remains unlimited. |
+| Safe to fall back to | `0` |
+
+Zero is today's behaviour: a turn runs until it is finished, out of tool calls, or out of budget. Setting a number is how somebody says 'if you have not answered me in five minutes, stop and tell me where you got to'.
+
+It is a clock, not a budget, so it catches the failure the token counters miss: a turn waiting on something slow spends almost nothing and can wait forever. Zero is conservative because it is what happens today -- an outage that landed here cannot cut a turn short that somebody was waiting on.
+
+#### `lucy.max_llm_turns`
+
+*How many model rounds one main turn may take before it stops.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `12` |
+| Bounds | 1-100, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub already stops its main loop at `Budget.max_iterations`; this setting makes that existing fixed limit personal. |
+| Safe to fall back to | `12` |
+
+One round is one model response, usually followed by a plan of tool calls. Twelve allows a substantial task while still stopping a model that keeps asking for another plan without converging. Reaching it leaves the turn resumable and records the exact count.
+
+Lower it for short conversational work. Raise it for long autonomous work, knowing that this permits more model calls as well as more time. During an outage the fixed limit the hub used before this setting remains in force.
+
+#### `lucy.max_subagent_turns`
+
+*How many model rounds one child agent may take before it stops.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `8` |
+| Bounds | 1-50, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub stops each child loop at this count. Depth and concurrency are separate. |
+| Safe to fall back to | `8` |
+
+Applied to each child independently, not shared across the fan-out. A child that reaches it returns the useful work and references it has so far rather than disappearing; the lead can then finish or deliberately continue.
+
+The default is shorter than the lead's because several children may spend it at once. Depth and concurrency are separate limits: raising this lets each existing child run longer but does not allow more children to start.
+
+#### `lucy.max_steps_per_plan`
+
+*How many steps one tool plan may contain before it is refused.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `20` |
+| Bounds | 1-100, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's plan schema and weftai maxSteps both read this. |
+| Safe to fall back to | `20` |
+
+A plan is the batch of calls Lucy submits in one go. This is the guard against a model that has decided the answer is four hundred more calls: the plan is refused with the count, and Lucy has to narrow it and try again.
+
+Lowering it forces smaller, more considered batches and costs round trips. Raising it lets one plan do more unattended, which is the thing that goes wrong expensively. Falling back to the designed value cannot widen anything past what the system allows at its most permissive.
+
+#### `lucy.max_parallel_steps`
+
+*How many steps of one plan may run at the same time.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `4` |
+| Bounds | 1-16, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's weftai runtime reads this as maxParallel. |
+| Safe to fall back to | `1`, `4` |
+
+One means every step waits for the one before it, which is slower and far easier to follow when something goes wrong. Higher finishes a wide plan sooner and interleaves the output of several tools in the transcript.
+
+This is concurrency inside a single plan, not helpers: `agent_max_concurrent` is the other one. Both values in the conservative set are safe -- one is the most cautious setting there is, and four is the designed default -- and an outage landing on either cannot run more at once than the system already does.
+
+#### `lucy.step_timeout_seconds`
+
+*How long one step of a plan may take before it is abandoned.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `10` |
+| Bounds | 1-600, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's weftai runtime reads this as stepTimeoutMs. |
+| Safe to fall back to | `10` |
+
+Ten seconds is tuned for tools that answer promptly, and it is too short for a build, a large download or a search against a slow provider. Raising it is what somebody does when a real piece of work keeps being cut off; the cost is that a hung tool now holds the turn for that long before anybody finds out.
+
+A timed-out step is reported to the model as a result rather than raised as an error, so Lucy can try something else instead of the turn collapsing. Falling back during an outage gives the timeout the tools were written against.
+
+#### `lucy.plan_timeout_seconds`
+
+*How long a whole plan of steps may take before it is abandoned.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `60` |
+| Bounds | 1-3600, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's weftai runtime reads this as planTimeoutMs. |
+| Safe to fall back to | `60` |
+
+The ceiling over `step_timeout_seconds`: twenty steps that each finish just inside their own timeout still have to finish inside this one. Without it a plan of slow-but-not-hung steps runs for as long as it likes.
+
+Set it comfortably above the step timeout. Setting it below means the plan is abandoned before its first step can even time out, which is legal, confusing, and not something this service can cross-check -- a catalogue entry is checked on its own and the other value may not be set at all.
+
+#### `lucy.session_token_budget`
+
+*A ceiling on what one conversation may spend. Zero means no ceiling.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `0` |
+| Bounds | 0-100000000, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's turn budget uses this as max_tokens; zero means no session cap. |
+| Safe to fall back to | `0` |
+
+Counted across Lucy and every helper it starts, so a fan-out cannot spend past it by splitting the work up. Lucy warns as it approaches and stops at it.
+
+#### `lucy.agent_max_depth`
+
+*How many levels of helper Lucy may start beneath itself.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `3` |
+| Bounds | 1-5, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub enforces this as the spawn/reopen nesting cap. |
+| Safe to fall back to | `1`, `3` |
+
+One means Lucy does everything itself. Each level multiplies what a single request can cost, which is why the ceiling is low. Three is safe to land on because three is the designed maximum: falling back here cannot widen anything past what the system allows at its most permissive.
+
+#### `lucy.agent_max_concurrent`
+
+*How many helpers may work at once.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `5` |
+| Bounds | 1-20, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub refuses spawn/reopen once this many helpers are running. |
+| Safe to fall back to | `1`, `5` |
+
+Start low. Three focused helpers usually beat five scattered ones, and every one of them is spending tokens on your behalf at the same time.
+
+#### `lucy.agent_result_token_cap`
+
+*How much a helper may hand back when it is finished.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `2000` |
+| Bounds | 200-20000, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub caps a helper's returned summary at this many tokens. |
+| Safe to fall back to | `2000` |
+
+A helper returns a summary plus references -- workspace paths, result references, its own id -- never a transcript. This is the size of that summary, and it is the single most important number in the helper design: a helper that returns forty thousand tokens of findings is strictly worse than never having started one, because the parent pays for all of it and got no say in what was kept.
+
+Raise it when helpers keep being asked to summarise something genuinely large and the parent keeps having to ask follow-up questions. The references are always there, so a parent that wants the detail can go and read it.
+
+#### `lucy.agent_wall_clock_seconds`
+
+*How long one helper may run before it is stopped and asked for what it has.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `600` |
+| Bounds | 10-7200, operator-clampable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. The hub's helper caps are compiled in, not read per account. |
+| Safe to fall back to | `600` |
+
+A clock per helper rather than for the whole fan-out, because the failure it catches is one helper stuck on something slow while the others finished ten minutes ago.
+
+A stopped helper is asked to hand back what it has rather than being discarded, so a short setting costs completeness rather than the work. Raise it for research that genuinely takes a while; lower it when you are waiting and would rather have a partial answer now.
+
+#### `lucy.agent_message_max_chars`
+
+*The largest message one helper may send another.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `4000` |
+| Bounds | 100-32000, operator-clampable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. The hub caps message size; the cap is not per account. |
+| Safe to fall back to | `4000` |
+
+Messages between helpers are for steering -- 'stop, the file moved', 'this is taking longer than you think' -- and not for moving work around. Anything large belongs in the workspace, where it can be referenced instead of copied into everybody's context.
+
+The cap is refused at the sender, so an oversized message is a failure the sending helper can see and act on rather than something that vanishes on the way. Raising it makes it easier to pass content around by message, which is the habit the cap exists to discourage.
+
+#### `lucy.agent_message_burst`
+
+*How many messages one helper may send another before it has to wait.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `5` |
+| Bounds | 1-50, operator-clampable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. The hub's per-recipient burst limit is compiled in. |
+| Safe to fall back to | `5` |
+
+Two models politely acknowledging each other is the default failure of a message channel rather than a hypothetical one, and this is what stops it paying for itself. The limit is per recipient and refused at the sender, so a helper finds out it is talking too much instead of discovering later that nobody was listening.
+
+Raise it for work where helpers genuinely coordinate step by step. Keep it low if a fan-out has ever turned into a conversation between the helpers about the conversation between the helpers.
+
+#### `lucy.permission_mode`
+
+*Whether Lucy asks before doing something that changes the world.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `ask` |
+| Bounds | `ask` / `accept_edits` / `plan` / `auto` |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as the default on a new session when create omits it. The session row is the live value after that. |
+| Safe to fall back to | `ask`, `plan` |
+
+`ask` checks anything not already granted. `accept_edits` grants workspace writes and asks about everything else. `plan` is read-only and refuses every write with a sentence saying so. `auto` allows everything and asks nothing -- explicit opt-in, and every event records that the mode was `auto`, because a decision nobody was asked about should at least be one somebody can find.
+
+Falling back to `ask` during an outage means more prompts, never fewer.
+
+#### `lucy.approval_policy`
+
+*The things Lucy must ask about no matter what else you have allowed.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `account` |
+| Default | `destructive_always_asks` |
+| Bounds | `destructive_always_asks` / `spend_and_destructive_ask` |
+| On unavailable | **refuse** |
+| Origin | existing — The hub refuses the turn when this cannot be confirmed, rather than guessing the floor. |
+
+This is a floor, not a preference: it is what `auto` cannot switch off. Something irreversible always gets a question.
+
+It refuses rather than falling back, and that is deliberate. Every other setting here has a safe default to land on during an outage; this one's job is to be the last thing standing, so a settings outage must not be a way to find out what happens when it is absent.
+
+#### `lucy.confirm_outward_actions`
+
+*Whether anything other people will see is confirmed before it happens.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | **proposed** — New here. The hub gates on tool permissions and not on where an effect lands. |
+| Safe to fall back to | `true` |
+
+Sending a message, posting something, adding to a shared playlist, writing to a repository somebody else reads. These are the actions whose cost is not technical: an unwanted file is deleted and forgotten, and an unwanted message has been read by the time you notice.
+
+On asks first, whatever `permission_mode` says -- it is a question about where the effect lands rather than about which tool produced it, so `auto` does not switch it off. Off is for somebody running unattended work who has accepted that. On is conservative and is what an outage lands on: more questions, never fewer.
+
+#### `lucy.enabled_capabilities`
+
+*Capabilities to offer even when they are not connected yet.*
+
+| | |
+| --- | --- |
+| Type | `str_list` |
+| Scope | `account` |
+| Default | `[]` |
+| Bounds | ≤32 items, items ≤48 chars |
+| On unavailable | use default |
+| Origin | **proposed** — New here. |
+| Safe to fall back to | `[]` |
+
+Empty means Lucy offers whatever is connected and stays quiet about the rest. Naming one here makes Lucy mention it and offer to set it up.
+
+#### `lucy.disabled_capabilities`
+
+*Capabilities to hide completely, connected or not.*
+
+| | |
+| --- | --- |
+| Type | `str_list` |
+| Scope | `account` |
+| Default | `[]` |
+| Bounds | ≤32 items, items ≤48 chars |
+| On unavailable | **refuse** |
+| Origin | existing — The hub hides a listed capability from tools. An outage refuses the turn. |
+
+A disabled capability is not offered and not mentioned. Lucy is told it is switched off rather than simply not seeing it, so that it stops suggesting the thing instead of forgetting the thing exists.
+
+**This refuses rather than falling back.** An empty list is the default because that is how Lucy works at all, so landing on it during an outage would re-enable something the person turned off -- and nobody would find out, because the turn would succeed.
+
+#### `lucy.memory_write_policy`
+
+*Whether Lucy may remember something about you without being asked.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `account` |
+| Default | `ask_first` |
+| Bounds | `never` / `ask_first` / `automatic` |
+| On unavailable | use default |
+| Origin | existing — The hub refuses notes.setFact and notes.remember when this is never, even with a grant. automatic lets those writes through in ask mode. Confirm, correct and forget are unchanged. |
+| Safe to fall back to | `never`, `ask_first` |
+
+`never` means only an explicit 'remember this' writes anything. `automatic` lets Lucy keep what it judges worth keeping, and you can read and correct all of it afterwards. Falling back to `ask_first` during an outage records less than you chose, never more, which is the direction a fallback should fail in.
+
+#### `lucy.memory_retrieval_limit`
+
+*How many remembered facts Lucy may bring into one conversation.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `12` |
+| Bounds | 0-100, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's live memory index is capped at this many topics per turn. |
+| Safe to fall back to | `12` |
+
+Zero means Lucy still knows the topic index -- what it knows *about* -- but pulls nothing in until you ask. Higher numbers cost context and can bury the useful memories among the merely related ones.
+
+#### `lucy.incognito`
+
+*Start conversations that neither read your memories nor write any.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as the default on a new session when create omits it. |
+| Safe to fall back to | `false` |
+
+A conversation still works: Lucy simply does not bring anything it has learned about you into it, and keeps nothing from it afterwards. The transcript is still stored, because you asked for a conversation and not for a disappearing one -- delete the session to be rid of that too.
+
+#### `lucy.log_message_content`
+
+*Whether what you say is written to the operational log.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `account` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub unredacts message-content fields on log lines for the duration of a turn when this is on. File contents, memory bodies and tool results stay out. |
+| Safe to fall back to | `false` |
+
+Off means the log records counts, shapes and timings and never a sentence you wrote. On is for debugging your own deployment, and it puts your conversations wherever those logs go. Falling back to off records less, never more.
+
+#### `lucy.input_policy`
+
+*What happens when you say something while Lucy is still working.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `enqueue` |
+| Bounds | `reject` / `enqueue` / `interrupt` / `rollback` |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as the default on a new session when create omits it. |
+| Safe to fall back to | `enqueue` |
+
+`enqueue` finishes the current turn and then reads what you said. `interrupt` stops, keeps the progress, and takes the new message. `rollback` discards the turn. `reject` refuses the second message.
+
+This needs an answer because a web page, a command line and another agent can all be in one conversation at once; left to emerge, the result is an interleaved transcript nobody can read.
+
+#### `lucy.auto_title`
+
+*Whether a conversation gets a title written from what it is about.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | **proposed** — New here. The hub titles a session from its first exchange, unconditionally. |
+| Safe to fall back to | `true`, `false` |
+
+On, the first exchange is turned into a short title so a list of sessions reads as a list of subjects rather than of timestamps. Off, a session keeps the time it started until you name it yourself.
+
+The title is derived from the conversation, so it is one more short piece of text about you, stored where the session is stored and destroyed with it. Neither value is a restriction against the other, which is why both are safe to land on: a session that acquired a title during an outage can be renamed, and one that did not can be titled later.
+
+#### `lucy.session_idle_archive_days`
+
+*How long a conversation sits idle before it is archived. Zero means never.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `30` |
+| Bounds | 0-3650, operator-clampable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. The hub keeps every session in the active list for ever. |
+| Safe to fall back to | `0`, `30` |
+
+Archiving is about the list, not the data: an archived session is out of the way, still searchable and still openable. Nothing is deleted by this setting and nothing can be -- deleting a conversation is something you do deliberately, and a number in a settings page is not that.
+
+Zero keeps everything in front of you, which is the honest default for somebody who has not thought about it. Both zero and the default are safe to fall back to for the same reason: neither destroys anything, so the worst an outage can do here is leave a list untidy.
+
+#### `lucy.workspace_retention_hours`
+
+*How long a conversation's files survive after it goes quiet.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `24` |
+| Bounds | 1-720, operator-clampable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. The sandbox service already reaps at 24 hours. |
+| Safe to fall back to | `24` |
+
+Reading a file does not count as activity in the service that holds it, so a long conversation can have its files reaped underneath it. Lucy keeps the sandbox alive while a session is open and warns you before this runs out.
+
+#### `lucy.stream_thinking`
+
+*Whether you see Lucy's reasoning as it happens.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub streams reasoning events only when this is on. |
+| Safe to fall back to | `false` |
+
+Off by default because reasoning is working-out rather than an answer, and reading it as though it were an answer is misleading. Turning it on does not change what Lucy does, only what you watch.
+
+#### `lucy.notify_on_long_turn`
+
+*Whether to say so when a turn is taking a long time.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | **proposed** — New here. The hub streams progress and announces nothing when a turn is slow. |
+| Safe to fall back to | `true` |
+
+On, a turn that passes `long_turn_seconds` says what it is doing and roughly how far along it is, so a long wait is a long wait rather than a silence you have to decide about. Off, it simply arrives when it arrives.
+
+On is conservative: a notice somebody did not want is an annoyance, and abandoning a turn that was nearly finished because nothing said so is the failure this exists to prevent.
+
+#### `lucy.long_turn_seconds`
+
+*How long a turn runs before it counts as a long one.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `60` |
+| Bounds | 5-3600 |
+| On unavailable | use default |
+| Origin | **proposed** — New here; depends on the same hub change as `notify_on_long_turn`. |
+| Safe to fall back to | `60` |
+
+Only meaningful with `notify_on_long_turn` on. Sixty seconds is roughly where a person stops assuming the answer is nearly there and starts wondering whether anything is happening.
+
+Lower it if you would rather hear early and often; raise it if the work you do is routinely slow and the notices have become noise. It says nothing about when a turn is stopped -- that is `max_turn_seconds`, and this one only talks.
+
+#### `lucy.retry_attempts`
+
+*How many times a failed call to another service is tried again.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `2` |
+| Bounds | 0-10, operator-clampable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. The hub retries a failed sibling call with a fixed policy. |
+| Safe to fall back to | `2` |
+
+Only for failures where trying again is meaningful -- a timeout, a rate limit, a connection that dropped. A refusal is never retried, because asking a second time for something you were told you may not have is how a permission prompt becomes a permission loop.
+
+Zero surfaces every hiccup to you. Higher hides them at the cost of a turn that sits there for longer before admitting the service is down. `retry_max_seconds` is the other half: whichever runs out first ends it.
+
+#### `lucy.retry_max_seconds`
+
+*How long retrying one call may go on before it gives up.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `30` |
+| Bounds | 1-600, operator-clampable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. The hub's retry backoff has no per-account ceiling. |
+| Safe to fall back to | `30` |
+
+The backoff between attempts grows, so a generous `retry_attempts` can add up to minutes of silence. This is the clock over the count: whichever is reached first ends the retrying and the failure is reported.
+
+Worth setting against how long you are prepared to watch a spinner. A service that has been unreachable for thirty seconds is usually going to be unreachable for thirty more, and hearing so is more useful than waiting.
+
+#### `lucy.downstream_timeout_seconds`
+
+*How long one call to another service may take before it is abandoned.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `10` |
+| Bounds | 1-300, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub's `http_timeout_seconds`, default 10, applied to every sibling call. |
+| Safe to fall back to | `10` |
+
+Every request the hub makes to a sibling -- memory, persona, keyring, the rest -- is bounded by this. It is deployment-wide today, which is the wrong shape: a person on a slow link and a person on the same machine as the services want different numbers.
+
+Short means a slow service is treated as a down service, which is usually the right call and occasionally throws away an answer that was coming. Long means a sibling having a bad day holds up your turn. This is the per-call timeout; `step_timeout_seconds` bounds a tool step, which may be several calls.
+
+#### `lucy.prompt_feeds_enabled`
+
+*Whether sibling feeds appear in the prompt at all.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub reads this at prepare_turn as the master feed switch. Keep the key in lockstep with lucy_api.context.policy.MASTER; catalogue modules cannot import the hub. |
+| Safe to fall back to | `true`, `false` |
+
+Off removes persona notes, now-playing, the workspace shell, everything a sibling publishes for the model to see. Tool results still arrive; this only governs the standing and live blocks.
+
+Both values are conservative because neither is a restriction the person expressed against the other: falling back to on during an outage shows what Lucy shows today, and a person who turned this off still has the per-capability switches.
+
+#### `lucy.prompt_hide_personal_feeds`
+
+*Whether incognito hides feeds marked as personal.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `account` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub reads this at prepare_turn. Keep the key in lockstep with lucy_api.context.policy.HIDE_PERSONAL. |
+| Safe to fall back to | `true` |
+
+On, an incognito session does not show who you are, what is playing, or the workspace you left open. Off still does not log those lines.
+
+On is the conservative value and the one an outage lands on: hiding more during a settings outage is recoverable, and showing a personal line the person turned off is not.
+
+#### `lucy.prompt_allow_unknown_feed_fields`
+
+*Whether a sibling may introduce feed keys Lucy does not already know.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `account` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub reads this at prepare_turn. Keep the key in lockstep with lucy_api.context.policy.ALLOW_UNKNOWN. |
+| Safe to fall back to | `false` |
+
+Off, a new key is dropped. That is the shape of a prompt injection from a compromised sibling: a field Lucy never declared, carrying an instruction.
+
+An assistant may never turn this on. Off is conservative and is what an outage lands on.
+
+#### `lucy.feeds_account`
+
+*Whether the account feed appears in the prompt.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+Off hides every account line, including ones left on individually. Lucy owns this switch so a sibling outage cannot put the lines back.
+
+#### `lucy.feeds_persona`
+
+*Whether the persona feed appears in the prompt.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+Off hides every persona line, including ones left on individually. Lucy owns this switch so a sibling outage cannot put the lines back.
+
+#### `lucy.feeds_music`
+
+*Whether the music feed appears in the prompt.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+Off hides every music line, including ones left on individually. Lucy owns this switch so a sibling outage cannot put the lines back.
+
+#### `lucy.feeds_workspace`
+
+*Whether the workspace feed appears in the prompt.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+Off hides every workspace line, including ones left on individually. Lucy owns this switch so a sibling outage cannot put the lines back.
+
+#### `lucy.feeds_research`
+
+*Whether the research feed appears in the prompt.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+Off hides every research line, including ones left on individually. Lucy owns this switch so a sibling outage cannot put the lines back.
+
+#### `lucy.feeds_account_pinned`
+
+*Pinned fields and notes the person asked to keep in view.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the account feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_persona_identity`
+
+*Who you are, in this profile.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the persona feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_persona_notes`
+
+*Pinned notes about the person.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the persona feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_music_now_playing`
+
+*What is playing, and how far in.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the music feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_music_device`
+
+*The speaker or computer audio is coming from.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the music feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_music_shuffled`
+
+*Whether the queue is shuffled.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the music feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_music_repeat`
+
+*Whether the queue or track repeats.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the music feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_music_queue_head`
+
+*What is lined up next.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `false` |
+
+One line of the music feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_workspace_cwd`
+
+*The current directory inside the workspace.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the workspace feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_workspace_shell`
+
+*Which shell is running.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the workspace feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_workspace_pid`
+
+*The running shell's process id.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the workspace feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_workspace_shells_running`
+
+*How many shells are open right now.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the workspace feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_workspace_sandbox`
+
+*How isolated the workspace is.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the workspace feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_workspace_git_branch`
+
+*The current git branch, if there is one.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `true`, `false` |
+
+One line of the workspace feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_workspace_last_command`
+
+*The last command that ran, without its output.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `false` |
+
+One line of the workspace feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
+
+#### `lucy.feeds_research_backend`
+
+*Which search backend is in force.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub applies this as a prompt-feed toggle at prepare_turn. |
+| Safe to fall back to | `false` |
+
+One line of the research feed. Off leaves the rest of that feed in place. Unknown keys from a sibling are dropped unless `prompt_allow_unknown_feed_fields` is on.
 
 ## `spotify`
 
@@ -692,6 +2138,8 @@ here. That matters for ``confirm_timeout_seconds`` in particular: spotify-api ca
 300, so a catalogue that allowed 600 would let a person set a value the service they were
 configuring would refuse.
 
+> **Needs a change in the owning service first:** `default_device`, `shuffle_on_play`, `repeat_mode`, `allow_explicit`. Until that change lands, setting these stores the value and changes no behaviour.
+
 #### `spotify.default_market`
 
 *Which country's catalogue track searches resolve against by default.*
@@ -699,6 +2147,7 @@ configuring would refuse.
 | | |
 | --- | --- |
 | Type | `str` |
+| Scope | `profile` |
 | Default | `null` |
 | Bounds | ≤2 chars, `^[A-Z]{2}$`, nullable |
 | On unavailable | use default |
@@ -718,6 +2167,7 @@ Upper case only. spotify-api normalises what it is given, and a catalogue that a
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `profile` |
 | Default | `50` |
 | Bounds | 1-200, operator-clampable |
 | On unavailable | use default |
@@ -735,6 +2185,7 @@ Falling back to fifty is safe because batch size is a throughput choice and not 
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `profile` |
 | Default | `15` |
 | Bounds | 5-300, operator-clampable |
 | On unavailable | use default |
@@ -752,6 +2203,7 @@ A timeout that expires abandons the action, so falling back to fifteen seconds d
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `1` |
 | Bounds | 0-24, operator-clampable |
 | On unavailable | use default |
@@ -761,6 +2213,77 @@ A timeout that expires abandons the action, so falling back to fifteen seconds d
 Overrides `common.job_retention_hours` for this namespace, and exists as its own entry for one reason: spotify-api caps its own TTL at 24 hours, and the common setting allows a week. A catalogue that offered seven days here would let a person set a value the service they were configuring refuses.
 
 Worth knowing before relying on it: spotify-api's job store is in memory, so these records are lost on restart and are not shared between replicas. This sets a ceiling on how long they live, not a floor.
+
+#### `spotify.default_device`
+
+*Which speaker or computer to play on when the request does not name one.*
+
+| | |
+| --- | --- |
+| Type | `str` |
+| Scope | `profile` |
+| Default | `null` |
+| Bounds | ≤128 chars, `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`, nullable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. spotify-api plays on whichever device Spotify last used; it has no per-account default device. |
+| Safe to fall back to | `null` |
+
+A Spotify device id, not a nickname. Null means 'whatever is already active', which is what spotify-api does today and is therefore the conservative fallback: an outage does not start blasting a kitchen speaker somebody turned off.
+
+This is playback routing, not what the model sees. Whether now-playing appears in the prompt is Lucy's `feeds_music_*` switches.
+
+#### `spotify.shuffle_on_play`
+
+*Whether a new play starts shuffled unless the request says otherwise.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | **proposed** — New here. spotify-api forwards shuffle per request and has no stored default. |
+| Safe to fall back to | `false` |
+
+Off leaves the queue in the order it was written. On shuffles at the start of playback, not mid-track.
+
+Off is conservative and is today's behaviour, so an outage never shuffles a playlist somebody had carefully ordered.
+
+#### `spotify.repeat_mode`
+
+*Whether a new play repeats the track, the queue, or neither.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `off` |
+| Bounds | `off` / `track` / `context` |
+| On unavailable | use default |
+| Origin | **proposed** — New here. spotify-api forwards repeat per request and has no stored default. |
+| Safe to fall back to | `off` |
+
+`off` plays through and stops. `track` loops one song. `context` loops the album or playlist.
+
+`off` is conservative because it is today's behaviour and because looping a track somebody did not ask to loop is the worse of the two surprises.
+
+#### `spotify.allow_explicit`
+
+*Whether tracks marked explicit may be returned and played.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | **refuse** |
+| Origin | **proposed** — New here. spotify-api passes searches through and does not filter on the explicit flag. |
+
+Off, a track the catalogue marks explicit is left out of results and refused for playback, and the clean version is offered where one exists. The flag is the label the rights holder applied, so it is imperfect in both directions -- this narrows what is offered rather than promising anything about content.
+
+**This refuses rather than falling back.** On is the default because it is how the service works, so landing on it during an outage would play explicit material to somebody who had turned it off -- often on a speaker, in a room, in front of the people they turned it off for. A search that fails is retried; a track already playing is not.
 
 ## `search`
 
@@ -779,7 +2302,7 @@ changes ordering, not sources. And ``safe_search`` exists today only as a per-re
 boolean on its request schema, with no server-side setting at all, so the three-way choice
 below needs a change there before it means anything.
 
-> **Needs a change in the owning service first:** `safe_search`, `store_query_history`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `safe_search`, `store_query_history`, `default_result_count`, `recency_days`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `search.default_model`
 
@@ -788,6 +2311,7 @@ below needs a change there before it means anything.
 | | |
 | --- | --- |
 | Type | `str` |
+| Scope | `profile` |
 | Default | `null` |
 | Bounds | ≤128 chars, `^[a-z0-9][a-z0-9_-]*:[A-Za-z0-9][A-Za-z0-9._:-]*$`, nullable |
 | On unavailable | use default |
@@ -805,6 +2329,7 @@ Null means 'whatever this deployment's default model is', which is the conservat
 | | |
 | --- | --- |
 | Type | `enum` |
+| Scope | `profile` |
 | Default | `google` |
 | Bounds | `google` / `searxng` |
 | On unavailable | use default |
@@ -822,6 +2347,7 @@ If somebody wants the stronger statement, it is not expressible today in the own
 | | |
 | --- | --- |
 | Type | `str_list` |
+| Scope | `account` |
 | Default | `[]` |
 | Bounds | ≤60 items, items ≤64 chars |
 | On unavailable | **refuse** |
@@ -840,6 +2366,7 @@ Note the change web-search-api needs: it builds its provider list once at startu
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `40000` |
 | Bounds | 1000-200000, operator-clampable |
 | On unavailable | use default |
@@ -857,6 +2384,7 @@ The default is web-search-api's own, so falling back to it reproduces today's be
 | | |
 | --- | --- |
 | Type | `enum` |
+| Scope | `profile` |
 | Default | `moderate` |
 | Bounds | `off` / `moderate` / `strict` |
 | On unavailable | use default |
@@ -874,6 +2402,7 @@ Both `moderate` and `strict` are conservative, and `off` is not -- so a future c
 | | |
 | --- | --- |
 | Type | `bool` |
+| Scope | `account` |
 | Default | `false` |
 | Bounds | — |
 | On unavailable | use default |
@@ -886,6 +2415,42 @@ Off, a query exists for the length of the request and is gone. On, it is kept, a
 **Owner-writable only.** A service holding this person's token may write within its own namespace, and this is one of the two exceptions, because the service that would benefit from switching it on is the service that would be doing the keeping. Turning it on has to be the person's own act, with a token they minted for settings itself.
 
 Off is conservative and is what an outage lands on: nothing is kept.
+
+#### `search.default_result_count`
+
+*How many results a search returns when the request does not ask for a number.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `8` |
+| Bounds | 1-20, operator-clampable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. web-search-api takes a count per request; this is the default it should use when the request omits one. |
+| Safe to fall back to | `8` |
+
+More results are more of the web in the prompt and a larger bill. Fewer are more round trips. Twenty is the owning service's own ceiling, expressed here so a person may lower it and never raise it past what the service will serve.
+
+Eight is a typical default and the fallback, so an outage neither floods the prompt nor starves a lookup that expected a handful of hits.
+
+#### `search.recency_days`
+
+*How recent a result must be, in days, when the request does not say.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `null` |
+| Bounds | 1-365, nullable, operator-clampable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. web-search-api has a recency filter on some providers and no per-account default. |
+| Safe to fall back to | `null` |
+
+Null means no recency filter, which is what the service does today and is therefore the conservative fallback: an outage does not hide a year-old page somebody needed. A number of 1 means 'today', 7 a week, 365 a year.
+
+This is a search preference, not a prompt line. Which backend is in force in the live block is Lucy's `feeds_research_backend`.
 
 ## `environments`
 
@@ -905,7 +2470,7 @@ what everybody gets today whenever settings-api was unreachable.
 ``default_profile`` is not repeated here. ``common.default_profile`` answers it for every
 service, environments-api's ``ENVAPI_DEFAULT_PROFILE`` included.
 
-> **Needs a change in the owning service first:** `default_shell`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `default_shell`, `persist_history`, `command_timeout_seconds`, `max_output_bytes`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `environments.idle_environment_hours`
 
@@ -914,6 +2479,7 @@ service, environments-api's ``ENVAPI_DEFAULT_PROFILE`` included.
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `profile` |
 | Default | `24` |
 | Bounds | 1-168, operator-clampable |
 | On unavailable | use default |
@@ -933,6 +2499,7 @@ A day is the fallback rather than the short end, and the reason is that the two 
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `profile` |
 | Default | `60` |
 | Bounds | 1-1440, operator-clampable |
 | On unavailable | use default |
@@ -952,6 +2519,7 @@ An hour is the fallback because it is today's behaviour, and because a shell clo
 | | |
 | --- | --- |
 | Type | `int` |
+| Scope | `account` |
 | Default | `5` |
 | Bounds | 1-5, operator-clampable |
 | On unavailable | use default |
@@ -971,6 +2539,7 @@ Falling back to the cap during an outage means environments-api behaves exactly 
 | | |
 | --- | --- |
 | Type | `enum` |
+| Scope | `profile` |
 | Default | `bash` |
 | Bounds | `bash` / `sh` |
 | On unavailable | use default |
@@ -982,3 +2551,57 @@ Falling back to the cap during an outage means environments-api behaves exactly 
 The choices are deliberately two shells every sandbox image has. A free-text path would be a person choosing which binary runs inside the sandbox, which is the operator's decision, and a shell that is not installed would be a setting that breaks every session it applies to.
 
 `bash` is the fallback because it is today's behaviour and the more capable of the two, so an outage never turns a working script into a failing one.
+
+#### `environments.persist_history`
+
+*Whether a shell's command history survives the shell that wrote it.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | **proposed** — New here. environments-api keeps shell history inside the sandbox for the life of the shell and does not write it across sessions. |
+| Safe to fall back to | `false` |
+
+On, the next session in the same environment can arrow-up through what ran before. Off, history dies with the process.
+
+Off is conservative: command history is a second copy of whatever was typed, including tokens pasted in a hurry, and an outage that started keeping it would be a record nobody asked for.
+
+#### `environments.command_timeout_seconds`
+
+*How long a command may run before the shell kills it, when nobody says.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `120` |
+| Bounds | 5-3600, operator-clampable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. environments-api times out a command with a deployment-wide number; this is the per-person default the request may still override. |
+| Safe to fall back to | `120` |
+
+Five seconds is for people who want a hung install to fail fast. An hour is for a long build that prints nothing for a while. The request may still name a shorter or longer limit inside this range.
+
+Two minutes is today's behaviour in spirit and is therefore the fallback: an outage that shortened it would kill a build; an outage that lengthened it would leave a runaway process sitting on the box.
+
+#### `environments.max_output_bytes`
+
+*How much of a command's output may be captured and handed back.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `1048576` |
+| Bounds | 4096-16777216, operator-clampable |
+| On unavailable | use default |
+| Origin | **proposed** — New here. environments-api caps captured stdout per command. |
+| Safe to fall back to | `1048576` |
+
+A ceiling on what Lucy will ever put in a tool result, not on what the process may print. Bytes beyond this are truncated with a count, never silently dropped.
+
+One mebibyte is the fallback because it is a typical capture cap and because raising it during an outage would spend prompt on a log dump nobody asked to keep. The operator may still clamp this down on a small box.

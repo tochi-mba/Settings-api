@@ -53,7 +53,20 @@ quoting rules mattering.
 """
 
 NAMESPACE_PATTERN = KEY_PATTERN
-"""A namespace is named by the same rule as a key. ``common``, ``media``, ``search``."""
+"""A namespace is named by the same rule as a key. ``common``, ``search``, ``spotify``."""
+
+ACCOUNT_PROFILE = "*"
+"""The profile column value for account-scoped rows.
+
+Not a keyring profile name -- keyring's pattern refuses ``*`` -- so a stored account
+row can never collide with a real profile.
+"""
+
+PROFILE_NAME_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$")
+"""keyring's own profile-name rule, used here so a query parameter this service
+accepts is a name keyring will accept. Single-character names are allowed (``a``);
+``*`` is not.
+"""
 
 MAX_SUMMARY_CHARS = 120
 MAX_DESCRIPTION_CHARS = 1_200
@@ -107,6 +120,140 @@ class Origin(StrEnum):
     """New here. Usually needs a change in the owning service before it does anything, and
     ``docs/catalogue.md`` says so per entry, so nobody ships a setting that silently does
     nothing."""
+
+
+class AgentAccess(StrEnum):
+    """Whether an assistant may change this setting on somebody's behalf.
+
+    A different question from :attr:`SettingDef.owner_writable_only`, which asks which
+    *person* may write a setting. This one asks whether a model counts as an acceptable
+    writer at all, and the two do not narrow each other. A setting an assistant may never
+    touch is still one its owner changes in a single call, which is the ordinary case and
+    the one that has to keep working.
+
+    The field carrying this defaults to ``NEVER``, and that default is the whole design.
+    The two ways of getting an entry wrong are not symmetrical. Marking something
+    assistant-writable that should not be is a privilege an assistant acquires quietly,
+    and nobody finds out until it has used it. Marking something ``NEVER`` that could
+    safely have been ``FREELY`` is an assistant saying "you will have to change that one
+    yourself", which somebody reports the same afternoon. So a setting nobody thought
+    about is a setting an assistant may not touch, and the price of that is a sentence in
+    a conversation.
+
+    Nothing in this service enforces it, and the documentation says so rather than
+    implying otherwise. settings-api cannot tell an assistant's write from a person's:
+    both arrive as that person's own token, and inventing a distinction here would mean
+    guessing at one. So this is a declaration the assistant hub reads and applies at the
+    point where it knows a model is the writer. It is written down here because it is a
+    fact about the setting rather than about the hub, and because the table is where
+    somebody reviews it.
+    """
+
+    NEVER = "never"
+    """An assistant may not set this, with a confirmation or without one.
+
+    For anything that widens what an assistant may do, weakens a protection, or shortens
+    the window in which somebody can undo something. A confirmation does not rescue these.
+    "Shall I stop asking before I act" is exactly the question a person says yes to while
+    thinking about something else, and exactly the one an instruction smuggled into a
+    document would have an assistant ask.
+    """
+
+    WITH_APPROVAL = "with_approval"
+    """An assistant may propose a value; a person confirms that particular change.
+
+    For anything that changes what is recorded about somebody, or spends their money. The
+    confirmation is of the change and not of the assistant: "you can manage my settings"
+    is not approval to set ``memory.write_importance_floor`` to 1.
+    """
+
+    FREELY = "freely"
+    """An assistant may set this without asking.
+
+    Only where every legal value is a matter of taste -- how a reply reads, how many
+    results one call returns, which zone a time is rendered in. Nothing in this class
+    changes what is stored about somebody, who may read it, how long it survives, or what
+    an assistant is permitted to do.
+    """
+
+    @property
+    def detail(self) -> str:
+        """The same answer as a sentence, saying what to do rather than naming a member.
+
+        Carried in ``describe_settings``, so the rule a client reads and the rule this
+        module states are one string rather than two that drift.
+        """
+        return _AGENT_ACCESS_DETAIL[self]
+
+
+class SettingScope(StrEnum):
+    """Which level a setting's stored value belongs to.
+
+    Exclusive, not layered: a setting is either one value for the account or one value
+    per keyring profile, never both. Overlay of the same key would be a second settings
+    system (which value wins?), and that is the compromise ADR-0002 refused. Declaring
+    the level on the entry keeps one value per row and makes a write to the wrong level
+    a 422 that names the fix.
+
+    Defaulted to ``ACCOUNT``. A setting nobody thought about is the same for every
+    credential set -- the safe answer for restrictions and identity, and the cheap one
+    for everything else. Profile-scoped entries opt in.
+    """
+
+    ACCOUNT = "account"
+    """One value for the person, regardless of which keyring profile is in use.
+
+    Restrictions, spend ceilings, erasure, and facts about who they are. A work
+    profile must not silently weaken a promise made on the account.
+    """
+
+    PROFILE = "profile"
+    """One value per keyring profile -- work vs personal, two Spotify accounts, two shells.
+
+    Taste, routing, and anything whose correct answer depends on which credential set
+    is in use rather than on who the person is.
+    """
+
+    @property
+    def detail(self) -> str:
+        """The same answer as a sentence, carried in ``describe_settings``."""
+        return _SCOPE_DETAIL[self]
+
+
+_SCOPE_DETAIL: dict[SettingScope, str] = {
+    SettingScope.ACCOUNT: (
+        "One value for this person, the same under every keyring profile. Pass no "
+        "profile to write it; a profile query is ignored."
+    ),
+    SettingScope.PROFILE: (
+        "One value per keyring profile. Pass ?profile= with a profile name to read "
+        "or write it; omitting the profile reads the catalogue default and refuses a write."
+    ),
+}
+
+
+_AGENT_ACCESS_DETAIL: dict[AgentAccess, str] = {
+    AgentAccess.NEVER: (
+        "An assistant may not set this on somebody's behalf, with a confirmation or "
+        "without one. Say what to change and leave the change to the person."
+    ),
+    AgentAccess.WITH_APPROVAL: (
+        "An assistant may propose a value and set it once the person has confirmed that "
+        "particular change. A general permission to manage settings is not that "
+        "confirmation."
+    ),
+    AgentAccess.FREELY: (
+        "An assistant may set this without asking. Every legal value is a matter of "
+        "taste: nothing here changes what is recorded about the person, who may read it, "
+        "how long it survives, or what an assistant is allowed to do."
+    ),
+}
+"""One sentence per member. A test asserts it covers every member of :class:`AgentAccess`.
+
+A table rather than the members' own docstrings, because a docstring is stripped under
+``-OO`` and is not something a JSON response can carry -- and this string is part of the
+response.
+"""
 
 
 class ExtraCheck(StrEnum):
@@ -169,7 +316,7 @@ class SettingDef:
     operator_clampable: bool = False
     """Whether a deployment's policy may narrow this setting's range.
 
-    Narrowing only, never widening: an operator may cap ``media.job_retention_hours`` at
+    Narrowing only, never widening: an operator may cap ``common.job_retention_hours`` at
     24 on a box with a small disk, and may not raise ``user.max_pinned`` above what the
     service can serve.
     """
@@ -182,6 +329,27 @@ class SettingDef:
     since a service that could turn that off through the ordinary write path would be a
     service that could turn off the check protecting the credentials it is about to ask
     for. See ADR-0004.
+    """
+
+    scope: SettingScope = SettingScope.ACCOUNT
+    """Whether this value is one per account or one per keyring profile.
+
+    See :class:`SettingScope`. Defaulted rather than required, for the same reason as
+    ``agent_writable``: the unconsidered answer has to be the one that cannot quietly
+    split a restriction across profiles.
+    """
+
+    agent_writable: AgentAccess = AgentAccess.NEVER
+    """Whether an assistant may change this on somebody's behalf. See :class:`AgentAccess`.
+
+    Defaulted rather than required, unlike ``on_unavailable``, and for the opposite
+    reason. There both answers are plausible and only the author knows which is right;
+    here one of the three is safe whatever the setting turns out to be, so an author who
+    says nothing gets the restrictive answer rather than a coin toss.
+
+    It does not narrow ``owner_writable_only`` and is not narrowed by it. A setting marked
+    ``NEVER`` is still written by the person it belongs to through the ordinary route, and
+    there is a test that says exactly that, so nobody later folds the two into one field.
     """
 
     conservative_values: tuple[Value, ...] = ()
@@ -433,6 +601,56 @@ def _entry_lifecycle(definition: SettingDef) -> None:
         _fail(definition, "has a deprecated_by that does not name namespace.key")
 
 
+def _entry_agent_access(definition: SettingDef) -> None:
+    """An assistant may not be handed more reach over a setting than the entry allows.
+
+    Three rules of one shape: the entry already says somewhere that this setting is
+    restricted, and ``agent_writable`` must not quietly contradict it. None of them makes
+    a setting less writable by a person -- they stop the two axes drifting apart, and
+    nothing else.
+    """
+    # If only the account owner may write it, with a token they minted for settings
+    # itself, then a model acting on their behalf is not who that restriction had in
+    # mind. It may still put the change to them; it may not simply make it.
+    if definition.owner_writable_only and definition.agent_writable is AgentAccess.FREELY:
+        _fail(definition, "is owner-writable only, so an assistant may not write it freely")
+
+    # A retired key is gone from the request surface, so nobody writes it and an assistant
+    # certainly does not. Retiring an entry that was assistant-writable has to move this
+    # field too, rather than leaving a stale permission in the table for whoever reverts
+    # the retirement later.
+    if definition.retired and definition.agent_writable is not AgentAccess.NEVER:
+        _fail(definition, "is retired, so it is not writable by anyone, an assistant included")
+
+    # A REFUSE entry is one whose default is permissive and whose stored value is a
+    # restriction somebody expressed -- that is the whole reason it refuses rather than
+    # falling back to that default. An assistant overwriting it unprompted is the failure
+    # the refusal exists to prevent, arriving by a different route.
+    if (
+        definition.on_unavailable is OnUnavailable.REFUSE
+        and definition.agent_writable is AgentAccess.FREELY
+    ):
+        _fail(definition, "holds a restriction it refuses to fall back from; freely is too much")
+
+
+def _entry_scope(definition: SettingDef) -> None:
+    """Account-level facts cannot be stored per profile, and ``common`` is all of those.
+
+    ``common.default_profile`` is the setting that *names* a profile. Storing it per
+    profile is circular: to read it you would already need to know which profile you
+    were reading for. The rest of ``common`` is the same shape -- where somebody lives,
+    what language to write to them in -- and splitting those across profiles would
+    reintroduce the silent disagreement this namespace exists to end.
+    """
+    if definition.namespace == "common" and definition.scope is SettingScope.PROFILE:
+        _fail(definition, "is in common, which is always account-scoped")
+    if definition.key == "default_profile" and definition.scope is SettingScope.PROFILE:
+        _fail(
+            definition,
+            "names a profile and cannot itself be per-profile; that would be circular",
+        )
+
+
 _ENTRY_RULES: tuple[Callable[[SettingDef], None], ...] = (
     _entry_names,
     _entry_prose,
@@ -440,5 +658,7 @@ _ENTRY_RULES: tuple[Callable[[SettingDef], None], ...] = (
     _entry_default,
     _entry_fallback,
     _entry_lifecycle,
+    _entry_agent_access,
+    _entry_scope,
 )
 """Every rule an entry must satisfy, run by :meth:`SettingDef.check`."""

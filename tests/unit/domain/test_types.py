@@ -27,10 +27,12 @@ from settings_api.domain.types import (
     KEY_PATTERN,
     MAX_DESCRIPTION_CHARS,
     MAX_SUMMARY_CHARS,
+    AgentAccess,
     ExtraCheck,
     OnUnavailable,
     Origin,
     SettingDef,
+    SettingScope,
     SettingType,
 )
 
@@ -341,7 +343,7 @@ class TestEveryTypeHasAChecker:
 
     def test_every_entry_rule_is_a_callable(self) -> None:
         assert all(callable(rule) for rule in _ENTRY_RULES)
-        assert len(_ENTRY_RULES) == 6
+        assert len(_ENTRY_RULES) == 8
 
 
 class TestEntryNames:
@@ -514,3 +516,56 @@ class TestCheckRunsEveryRule:
 
     def test_an_entry_with_labels_passes(self) -> None:
         entry(labels=("privacy",)).check()
+
+
+class TestEntryAgentAccess:
+    @pytest.mark.parametrize("access", list(AgentAccess))
+    def test_each_agent_access_level_explains_the_effect(self, access: AgentAccess) -> None:
+        assert access.detail
+
+    def test_owner_only_setting_cannot_be_freely_changed_by_an_agent(self) -> None:
+        check_fails(
+            entry(owner_writable_only=True, agent_writable=AgentAccess.FREELY),
+            "owner-writable only",
+        )
+
+    @pytest.mark.parametrize("access", [AgentAccess.WITH_APPROVAL, AgentAccess.NEVER])
+    def test_owner_only_setting_accepts_restricted_agent_access(self, access: AgentAccess) -> None:
+        entry(owner_writable_only=True, agent_writable=access).check()
+
+    @pytest.mark.parametrize("access", [AgentAccess.FREELY, AgentAccess.WITH_APPROVAL])
+    def test_retired_setting_cannot_remain_agent_writable(self, access: AgentAccess) -> None:
+        check_fails(entry(retired_at="2026-03-01", agent_writable=access), "is retired")
+
+    def test_restriction_cannot_be_freely_overwritten_by_an_agent(self) -> None:
+        check_fails(
+            entry(on_unavailable=OnUnavailable.REFUSE, agent_writable=AgentAccess.FREELY),
+            "freely is too much",
+        )
+
+    def test_restriction_can_require_approval(self) -> None:
+        entry(on_unavailable=OnUnavailable.REFUSE, agent_writable=AgentAccess.WITH_APPROVAL).check()
+
+    def test_unrestricted_live_setting_can_be_agent_writable(self) -> None:
+        entry(agent_writable=AgentAccess.FREELY).check()
+
+
+class TestEntryScope:
+    @pytest.mark.parametrize("scope", list(SettingScope))
+    def test_each_scope_explains_the_effect(self, scope: SettingScope) -> None:
+        assert scope.detail
+
+    def test_common_cannot_be_profile_scoped(self) -> None:
+        check_fails(entry(namespace="common", scope=SettingScope.PROFILE), "is in common")
+
+    def test_default_profile_cannot_be_profile_scoped(self) -> None:
+        check_fails(
+            entry(key="default_profile", scope=SettingScope.PROFILE),
+            "cannot itself be per-profile",
+        )
+
+    def test_an_ordinary_profile_scoped_entry_is_accepted(self) -> None:
+        entry(scope=SettingScope.PROFILE).check()
+
+    def test_the_unconsidered_scope_is_account(self) -> None:
+        assert entry().scope is SettingScope.ACCOUNT

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from datetime import date
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -21,9 +22,11 @@ from settings_api.domain.types import (
     KEY_PATTERN,
     MAX_DESCRIPTION_CHARS,
     MAX_SUMMARY_CHARS,
+    AgentAccess,
     OnUnavailable,
     Origin,
     SettingDef,
+    SettingScope,
     SettingType,
 )
 
@@ -31,15 +34,87 @@ ENTRIES = list(registry.every_entry())
 IDS = [entry.qualified for entry in ENTRIES]
 
 EXPECTED_COUNTS = {
-    "common": 7,
-    "keyring": 6,
+    "common": 8,
+    "keyring": 7,
     "user": 6,
     "persona": 7,
-    "media": 6,
-    "spotify": 4,
-    "search": 6,
-    "environments": 4,
+    "memory": 7,
+    "lucy": 76,
+    "spotify": 8,
+    "search": 8,
+    "environments": 7,
 }
+
+PROFILE_SCOPED = frozenset(
+    {
+        "spotify.default_market",
+        "spotify.max_batch_size",
+        "spotify.confirm_timeout_seconds",
+        "spotify.default_device",
+        "spotify.shuffle_on_play",
+        "spotify.repeat_mode",
+        "spotify.allow_explicit",
+        "environments.idle_environment_hours",
+        "environments.idle_shell_minutes",
+        "environments.default_shell",
+        "environments.persist_history",
+        "environments.command_timeout_seconds",
+        "persona.default_persona",
+        "persona.recall_default_limit",
+        "search.default_model",
+        "search.search_backend",
+        "search.safe_search",
+        "search.default_result_count",
+        "search.recency_days",
+        "lucy.model",
+        "lucy.fallback_model",
+        "lucy.thinking",
+        "lucy.temperature",
+        "lucy.response_style",
+        "lucy.vision_enabled",
+        "lucy.reserve_percent",
+        "lucy.warn_at_percent",
+        "lucy.compaction_trigger_percent",
+        "lucy.history_turns_kept",
+        "lucy.tool_results_kept",
+        "lucy.max_steps_per_plan",
+        "lucy.max_parallel_steps",
+        "lucy.step_timeout_seconds",
+        "lucy.plan_timeout_seconds",
+        "lucy.permission_mode",
+        "lucy.confirm_outward_actions",
+        "lucy.incognito",
+        "lucy.input_policy",
+        "lucy.auto_title",
+        "lucy.session_idle_archive_days",
+        "lucy.workspace_retention_hours",
+        "lucy.stream_thinking",
+        "lucy.notify_on_long_turn",
+        "lucy.long_turn_seconds",
+        "lucy.prompt_feeds_enabled",
+        "lucy.feeds_account",
+        "lucy.feeds_persona",
+        "lucy.feeds_music",
+        "lucy.feeds_workspace",
+        "lucy.feeds_research",
+        "lucy.feeds_account_pinned",
+        "lucy.feeds_persona_identity",
+        "lucy.feeds_persona_notes",
+        "lucy.feeds_music_now_playing",
+        "lucy.feeds_music_device",
+        "lucy.feeds_music_shuffled",
+        "lucy.feeds_music_repeat",
+        "lucy.feeds_music_queue_head",
+        "lucy.feeds_workspace_cwd",
+        "lucy.feeds_workspace_shell",
+        "lucy.feeds_workspace_pid",
+        "lucy.feeds_workspace_shells_running",
+        "lucy.feeds_workspace_sandbox",
+        "lucy.feeds_workspace_git_branch",
+        "lucy.feeds_workspace_last_command",
+        "lucy.feeds_research_backend",
+    }
+)
 
 
 @pytest.mark.parametrize("entry", ENTRIES, ids=IDS)
@@ -102,7 +177,17 @@ class TestTheCatalogueAsAWhole:
         assert {
             namespace: len(entries) for namespace, entries in CATALOGUE.items()
         } == EXPECTED_COUNTS
-        assert len(BY_QUALIFIED) == sum(EXPECTED_COUNTS.values()) == 46
+        assert len(BY_QUALIFIED) == sum(EXPECTED_COUNTS.values()) == 134
+
+    def test_profile_scoped_settings_are_exactly_this_set(self) -> None:
+        # Exclusive scopes, declared on the entry. A setting nobody thought about stays
+        # ACCOUNT so a restriction cannot quietly split across profiles. This set is
+        # the whole of the PROFILE opt-in; adding one is a deliberate catalogue change.
+        actual = {entry.qualified for entry in ENTRIES if entry.scope is SettingScope.PROFILE}
+        assert actual == PROFILE_SCOPED
+
+    def test_every_common_setting_is_account_scoped(self) -> None:
+        assert all(entry.scope is SettingScope.ACCOUNT for entry in CATALOGUE["common"])
 
     def test_no_qualified_name_repeats(self) -> None:
         assert len(IDS) == len(set(IDS))
@@ -129,6 +214,21 @@ class TestTheCatalogueAsAWhole:
             "common.default_profile",
             "keyring.require_reauth_for_credential_changes",
             "search.disabled_providers",
+            # The assistant's floor under every permission it was told to skip, and three
+            # memory settings where neither direction of a guess is safe: relying on more
+            # than somebody agreed to, recording more than they agreed to, and rewriting
+            # what is already recorded.
+            "lucy.approval_policy",
+            "lucy.disabled_capabilities",
+            "memory.retrieval_trust_floor",
+            "memory.write_importance_floor",
+            "memory.consolidation",
+            "memory.erasure_grace_days",
+            # And two where the permissive default is the one the service needs to work,
+            # so landing on it would undo a restriction somebody expressed -- and the turn
+            # would succeed, which is why nobody would find out.
+            "lucy.vision_enabled",
+            "spotify.allow_explicit",
         }
 
     def test_the_common_and_namespace_collision_is_the_one_that_is_meant(self) -> None:
@@ -141,10 +241,78 @@ class TestTheCatalogueAsAWhole:
             if entry.key in common_keys
         }
         # Deliberate, and exercised by resolution tests: the namespace wins.
-        assert collisions == {"media.job_retention_hours", "spotify.job_retention_hours"}
+        assert collisions == {"spotify.job_retention_hours"}
 
     def test_nothing_is_retired_yet(self) -> None:
         assert all(entry.retired_at is None for entry in ENTRIES)
+
+    def test_the_built_in_catalogue_is_exactly_the_modules_this_repository_ships(self) -> None:
+        # The guard behind ADR-0011. A namespace reaches the public catalogue only through
+        # a module in this package or through the entry-point group, and this pins the
+        # first half: every assembled namespace is on disk here, so a namespace nobody can
+        # see the source of is a namespace that did not come from this repository.
+        #
+        # "On disk here" means a `<namespace>.py` or, once a namespace outgrows one file,
+        # a `<namespace>/` package -- `lucy` is split by what a
+        # person is deciding. Both are a namespace this tree ships and both satisfy the
+        # NamespaceModule protocol; neither is something an installed package can add.
+        package = Path(catalogue.__file__).parent
+        shipped = {path.stem for path in package.glob("*.py") if not path.stem.startswith("_")}
+        shipped |= {path.name for path in package.iterdir() if (path / "__init__.py").is_file()}
+        assert {module.NAMESPACE for module in catalogue._MODULES} == shipped
+        assert set(EXPECTED_COUNTS) == shipped
+
+    def test_nothing_is_registered_under_the_entry_point_group_in_this_repository(self) -> None:
+        # The other half. This repository ships no extension, so the live catalogue is the
+        # built-in modules and nothing else -- which is what makes the counts above a
+        # statement about this tree rather than about whatever happens to be installed.
+        assert catalogue._discovered_modules() == ()
+
+    def test_only_settings_that_change_nothing_are_freely_assistant_writable(self) -> None:
+        freely = {
+            entry.qualified for entry in ENTRIES if entry.agent_writable is AgentAccess.FREELY
+        }
+        # None of these changes what is stored about somebody, who may read it, how long it
+        # survives, or what an assistant is allowed to do. That is the whole membership
+        # rule, and it is worth pinning because the cost of a wrong entry here is a
+        # privilege an assistant takes quietly.
+        assert freely == {
+            "lucy.temperature",
+            "lucy.notify_on_long_turn",
+            "lucy.long_turn_seconds",
+        }
+
+    def test_the_settings_an_assistant_may_only_propose_are_the_prompt_feed_ones(self) -> None:
+        proposing = {
+            entry.qualified
+            for entry in ENTRIES
+            if entry.agent_writable is AgentAccess.WITH_APPROVAL
+        }
+        assert proposing == {
+            "lucy.prompt_feeds_enabled",
+            "lucy.prompt_hide_personal_feeds",
+            "lucy.auto_title",
+        } | {entry.qualified for entry in CATALOGUE["lucy"] if entry.key.startswith("feeds_")}
+
+    def test_prompt_feed_toggles_cover_the_declared_table_and_nothing_else(self) -> None:
+        from settings_api.domain.catalogue.lucy.feeds import _FEED_CAPS, _FEED_FIELDS
+
+        expected = {f"lucy.feeds_{capability}" for capability in _FEED_CAPS}
+        expected.update(
+            f"lucy.feeds_{capability}_{key}" for capability, key, _default, _summary in _FEED_FIELDS
+        )
+        actual = {entry.qualified for entry in CATALOGUE["lucy"] if entry.key.startswith("feeds_")}
+        assert actual == expected
+        unknown = BY_QUALIFIED["lucy.prompt_allow_unknown_feed_fields"]
+        assert unknown.agent_writable is AgentAccess.NEVER
+        assert BY_QUALIFIED["lucy.disabled_capabilities"].on_unavailable is OnUnavailable.REFUSE
+        assert BY_QUALIFIED["lucy.thinking"].default == "medium"
+
+    def test_the_two_model_round_limits_are_separate_and_bounded(self) -> None:
+        main = BY_QUALIFIED["lucy.max_llm_turns"]
+        child = BY_QUALIFIED["lucy.max_subagent_turns"]
+        assert (main.default, main.minimum, main.maximum) == (12, 1, 100)
+        assert (child.default, child.minimum, child.maximum) == (8, 1, 50)
 
 
 class TestAssembly:
@@ -204,6 +372,85 @@ class TestAssembly:
     def test_a_good_set_of_modules_assembles(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(catalogue, "_MODULES", (self.module("a", self.entry("a", "k")),))
         assert list(catalogue._assemble()) == ["a"]
+
+
+class TestDiscovery:
+    """A namespace an installed package registered, held to exactly the built-in rules."""
+
+    module = staticmethod(TestAssembly.module)
+    entry = staticmethod(TestAssembly.entry)
+
+    def test_a_registered_namespace_is_assembled_alongside_the_built_in_ones(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        extension = self.module("extra", self.entry("extra", "k"))
+        monkeypatch.setattr(catalogue, "_discovered_modules", lambda: (extension,))
+
+        assembled = catalogue._assemble()
+
+        assert assembled["extra"] == extension.SETTINGS
+        assert set(assembled) == set(EXPECTED_COUNTS) | {"extra"}
+
+    def test_a_registered_entry_is_validated_exactly_as_a_built_in_one_is(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The property that makes an entry point safe to offer: an extension gets no
+        # latitude a module in this package does not, so a malformed one stops the process
+        # that installed it rather than answering a request wrongly months later.
+        malformed = SettingDef(
+            namespace="extra",
+            key="k",
+            value_type=SettingType.BOOL,
+            default=False,
+            summary="A flag.",
+            description="What the flag does.",
+            on_unavailable=OnUnavailable.USE_DEFAULT,
+            origin=Origin.PROPOSED,
+        )
+        monkeypatch.setattr(
+            catalogue, "_discovered_modules", lambda: (self.module("extra", malformed),)
+        )
+
+        with pytest.raises(ValueError, match="declares no conservative values"):
+            catalogue._assemble()
+
+    def test_a_registered_module_declaring_someone_elses_namespace_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            catalogue, "_discovered_modules", lambda: (self.module("extra", self.entry("a", "k")),)
+        )
+
+        with pytest.raises(ValueError, match=r"a\.k is declared in the 'extra' module"):
+            catalogue._assemble()
+
+    def test_a_registered_namespace_may_not_replace_a_built_in_one(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Otherwise an installed package is a way to redefine a public namespace's bounds
+        # and prose, in a process where nothing on disk here says it happened.
+        monkeypatch.setattr(
+            catalogue,
+            "_discovered_modules",
+            lambda: (self.module(COMMON, self.entry(COMMON, "k")),),
+        )
+
+        with pytest.raises(ValueError, match="both define the 'common' namespace"):
+            catalogue._assemble()
+
+    def test_an_entry_point_in_the_group_is_loaded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        extension = self.module("extra", self.entry("extra", "k"))
+        point = SimpleNamespace(load=lambda: extension)
+        seen: list[str] = []
+
+        def fake_entry_points(*, group: str) -> tuple[Any, ...]:
+            seen.append(group)
+            return (point,)
+
+        monkeypatch.setattr(catalogue, "entry_points", fake_entry_points)
+
+        assert catalogue._discovered_modules() == (extension,)
+        assert seen == [catalogue.ENTRY_POINT_GROUP]
 
 
 class TestRegistry:

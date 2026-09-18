@@ -17,21 +17,17 @@ CREATE TABLE schema_version (
     applied_at TEXT    NOT NULL
 ) STRICT
 ;
-CREATE TABLE settings (
+CREATE TABLE "settings" (
     account_id TEXT NOT NULL REFERENCES accounts (account_id) ON DELETE CASCADE,
+    profile    TEXT NOT NULL,
     namespace  TEXT NOT NULL,
     key        TEXT NOT NULL,
-    -- The value, as JSON text. NOT NULL even for a nullable setting, because a nullable
-    -- setting stores the four bytes `null` -- which is a value somebody chose, and is a
-    -- different thing from having no row at all.
     value_json TEXT NOT NULL,
     set_at     TEXT NOT NULL,
-    -- The verified audience of the token that set it, or `service:<name>` when a service
-    -- wrote it while holding this person's token. Provenance the server derived rather
-    -- than provenance the writer claimed.
     set_by     TEXT NOT NULL,
 
-    PRIMARY KEY (account_id, namespace, key)
+    PRIMARY KEY (account_id, profile, namespace, key),
+    CHECK (length(profile) BETWEEN 1 AND 64)
 ) STRICT, WITHOUT ROWID;
 CREATE TABLE settings_events (
     sequence   INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,

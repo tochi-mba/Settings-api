@@ -20,7 +20,7 @@ another.
 
 What comes back is one namespace with ``common`` merged underneath it, and nothing else. A
 service learns only what it needs to do its job, so the blast radius of one compromised
-service token is one namespace: media-tool cannot read ``user.erasure_mode``.
+service token is one namespace: a downstream service cannot read ``user.erasure_mode``.
 
 ## Why services may write at all
 
@@ -36,7 +36,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Path, Response, status
+from fastapi import APIRouter, Path, Query, Response, status
 
 from settings_api.api.dependencies import (
     ContainerDep,
@@ -64,6 +64,18 @@ NamespacePath = Annotated[
     str, Path(description="The namespace this service is asking for.", max_length=64)
 ]
 KeyPath = Annotated[str, Path(description="Which setting in that namespace.", max_length=64)]
+ProfileQuery = Annotated[
+    str | None,
+    Query(
+        description=(
+            "Which keyring profile to resolve or write profile-scoped settings for. "
+            "Account-scoped settings ignore this. Required when writing a "
+            "profile-scoped setting."
+        ),
+        max_length=64,
+        pattern=r"^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
+    ),
+]
 
 
 @router.get(
@@ -98,9 +110,10 @@ async def resolve_settings(
     identity: ServiceIdentityDep,
     response: Response,
     if_none_match: IfNoneMatchDep = None,
+    profile: ProfileQuery = None,
 ) -> ResolvedSettingsResponse | Response:
     """Resolve one namespace for the person whose token the caller presented."""
-    document = await container.service.resolve_for(identity, namespace)
+    document = await container.service.resolve_for(identity, namespace, profile=profile)
     cache_control = f"private, max-age={container.settings.cache_ttl_seconds}"
 
     if _matches(if_none_match, document.etag):
@@ -131,7 +144,8 @@ async def resolve_settings(
         "The write-through path: a person changing a setting inside another service's own "
         "interface, with that service passing the change along. Requires both "
         "credentials, and the calling service may only write within the namespaces it was "
-        "granted -- media-tool cannot write `user.*`, and cannot write anything at all for "
+        "granted -- a downstream service cannot write `user.*`, and cannot write anything "
+        "at all for "
         "somebody whose token it does not hold.\n\n"
         "Settings marked `owner_writable_only` are refused with a 403 even here: those "
         "have to be changed by the person, with a token minted for settings itself."
@@ -159,9 +173,12 @@ async def set_setting_for_user(
     container: ContainerDep,
     identity: ServiceIdentityDep,
     response: Response,
+    profile: ProfileQuery = None,
 ) -> WriteResponse:
     """Set one setting for the person whose token the caller presented."""
-    written = await container.service.set_setting(identity, namespace, key, body.value)
+    written = await container.service.set_setting(
+        identity, namespace, key, body.value, profile=profile
+    )
     response.headers[ETAG_HEADER] = written.etag
     return WriteResponse(
         revision=written.revision,

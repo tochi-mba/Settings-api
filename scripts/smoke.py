@@ -23,7 +23,7 @@ Environment:
     SMOKE_EMAIL               an account that already exists in keyring
     SMOKE_PASSWORD            its password
     SETTINGS_SPOTIFY_TOKEN    the service token configured here for spotify-api
-    SETTINGS_MEDIA_TOKEN      the service token configured here for media-tool
+    SETTINGS_SEARCH_TOKEN     the service token configured here for web-search-api
     SETTINGS_DB_PATH          the database file, for the byte scan and the mode check
 """
 
@@ -42,13 +42,13 @@ KEYRING_URL = os.environ.get("KEYRING_URL", "http://127.0.0.1:8001").rstrip("/")
 EMAIL = os.environ.get("SMOKE_EMAIL", "")
 PASSWORD = os.environ.get("SMOKE_PASSWORD", "")
 SPOTIFY_TOKEN = os.environ.get("SETTINGS_SPOTIFY_TOKEN", "")
-MEDIA_TOKEN = os.environ.get("SETTINGS_MEDIA_TOKEN", "")
+SEARCH_TOKEN = os.environ.get("SETTINGS_SEARCH_TOKEN", "")
 DB_PATH = Path(os.environ.get("SETTINGS_DB_PATH", "var/settings.db"))
 
 SPOTIFY_AUDIENCE = "spotify-api"
 """spotify-api's name in KEYRING_SERVICE_TOKENS, and therefore its prefix in this grant."""
 
-MEDIA_AUDIENCE = "media-tool"
+SEARCH_AUDIENCE = "web-search-api"
 
 SENTINEL_MARKET = "GB"
 """The value written and then looked for in the file's bytes.
@@ -119,8 +119,8 @@ def service(service_token: str, user_token: str) -> dict[str, str]:
 def main() -> None:
     if not (EMAIL and PASSWORD):
         fatal("SMOKE_EMAIL and SMOKE_PASSWORD are not set; create an account in keyring first")
-    if not (SPOTIFY_TOKEN and MEDIA_TOKEN):
-        fatal("SETTINGS_SPOTIFY_TOKEN and SETTINGS_MEDIA_TOKEN must both be set")
+    if not (SPOTIFY_TOKEN and SEARCH_TOKEN):
+        fatal("SETTINGS_SPOTIFY_TOKEN and SETTINGS_SEARCH_TOKEN must both be set")
 
     with httpx.Client(timeout=10.0) as client:
         print("\n1. keyring logs the account in and mints a token with audience `settings`")
@@ -184,11 +184,11 @@ def main() -> None:
         check("fallbacks returned", "fallbacks" in resolved.json())
         internal_etag = resolved.headers.get("ETag", "")
 
-        print("\n6. media-tool cannot read the spotify namespace")
-        media_user = mint(client, session, MEDIA_AUDIENCE)
+        print("\n6. web-search-api cannot read the spotify namespace")
+        search_user = mint(client, session, SEARCH_AUDIENCE)
         refused = client.get(
             f"{SETTINGS_URL}/v1/internal/settings/spotify",
-            headers=service(MEDIA_TOKEN, media_user),
+            headers=service(SEARCH_TOKEN, search_user),
         )
         check("403", refused.status_code == httpx.codes.FORBIDDEN, str(refused.status_code))
 

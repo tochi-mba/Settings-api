@@ -20,7 +20,7 @@ ERASURE = definition_for("user", "erasure_mode")  # ENUM, not clampable
 LOG_VALUES = definition_for("user", "log_values")  # BOOL, not clampable
 PROVIDERS = definition_for("search", "disabled_providers")  # STR_LIST ≤60, not clampable
 MARKET = definition_for("spotify", "default_market")  # nullable STR
-QUALITY = definition_for("media", "preferred_quality")  # ENUM, not clampable
+SHELL = definition_for("environments", "default_shell")  # ENUM, not clampable
 CONTENT = definition_for("search", "max_content_chars")  # INT 1000-200000, clampable
 
 
@@ -149,8 +149,8 @@ class TestNarrowThroughTheParserShape:
 
         from settings_api.domain import policy as module
 
-        enum = module._narrow(replace(QUALITY, operator_clampable=True), {"choices": ["best"]})
-        assert enum.choices == ("best",)
+        enum = module._narrow(replace(SHELL, operator_clampable=True), {"choices": ["bash"]})
+        assert enum.choices == ("bash",)
         lst = module._narrow(replace(PROVIDERS, operator_clampable=True), {"max_items": 3})
         assert lst.max_items == 3
 
@@ -173,27 +173,29 @@ class TestChoices:
         # No ENUM in the catalogue is clampable today, and that is the point of this test:
         # the rule exists for the day one is. Use a clampable INT to prove the clause is
         # gated, and prove the narrowing logic directly below.
-        refused({"media": {"preferred_quality": {"choices": ["best"]}}}, "not operator-clampable")
+        refused(
+            {"environments": {"default_shell": {"choices": ["bash"]}}}, "not operator-clampable"
+        )
 
     def test_the_narrowing_itself(self) -> None:
         from settings_api.domain import policy as module
 
-        narrowed = module._subset(QUALITY, ["720p", "best"])
-        assert narrowed == ("best", "720p")
+        narrowed = module._subset(SHELL, ["sh", "bash"])
+        assert narrowed == ("bash", "sh")
 
     def test_widened_is_refused(self) -> None:
         from settings_api.domain import policy as module
 
         with pytest.raises(
-            PolicyError, match=r"adds choices .* that the catalogue does not have: 4k"
+            PolicyError, match=r"adds choices .* that the catalogue does not have: fish"
         ):
-            module._subset(QUALITY, ["best", "4k"])
+            module._subset(SHELL, ["bash", "fish"])
 
     def test_empty_is_refused(self) -> None:
         from settings_api.domain import policy as module
 
         with pytest.raises(PolicyError, match="may not be empty"):
-            module._subset(QUALITY, [])
+            module._subset(SHELL, [])
 
     def test_on_a_non_enum_is_refused(self) -> None:
         from settings_api.domain import policy as module
@@ -201,12 +203,12 @@ class TestChoices:
         with pytest.raises(PolicyError, match="applies only to an enum"):
             module._subset(GRACE, ["a"])
 
-    @pytest.mark.parametrize("value", ["best", [1, 2], None])
+    @pytest.mark.parametrize("value", ["bash", [1, 2], None])
     def test_must_be_a_list_of_strings(self, value: Any) -> None:
         from settings_api.domain import policy as module
 
         with pytest.raises(PolicyError, match="must be a list of strings"):
-            module._subset(QUALITY, value)
+            module._subset(SHELL, value)
 
 
 class TestMaxItems:

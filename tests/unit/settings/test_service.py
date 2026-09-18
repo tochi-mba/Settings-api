@@ -93,7 +93,7 @@ class TestReads:
     async def test_get_all_never_fails_for_an_account_with_nothing_stored(
         self, service: SettingsService
     ) -> None:
-        document = await service.get_all(OWNER)
+        document = await service.get_all(OWNER, profile="personal")
         assert set(document.namespaces) == NAMESPACES
         assert document.revision == 0
         assert document.etag == '"account-a.0"'
@@ -102,10 +102,13 @@ class TestReads:
     async def test_get_all_is_bounded_by_the_tokens_namespaces(
         self, service: SettingsService
     ) -> None:
-        assert set((await service.get_all(SEARCH_ONLY)).namespaces) == {"search", "common"}
+        assert set((await service.get_all(SEARCH_ONLY, profile="personal")).namespaces) == {
+            "search",
+            "common",
+        }
 
     async def test_get_namespace(self, service: SettingsService) -> None:
-        document = await service.get_namespace(OWNER, "spotify")
+        document = await service.get_namespace(OWNER, "spotify", profile="personal")
         assert set(document.namespaces) == {"spotify"}
 
     async def test_an_unknown_namespace_is_told_it_is_unknown_before_anything_about_the_grant(
@@ -113,24 +116,24 @@ class TestReads:
     ) -> None:
         # A caller with a typo goes looking for the wrong problem otherwise.
         with pytest.raises(UnknownNamespaceError):
-            await service.get_namespace(SEARCH_ONLY, "spotfy")
+            await service.get_namespace(SEARCH_ONLY, "spotfy", profile="personal")
 
     async def test_an_ungranted_namespace_is_forbidden(self, service: SettingsService) -> None:
         with pytest.raises(NamespaceNotGrantedError, match="does not grant the spotify"):
-            await service.get_namespace(SEARCH_ONLY, "spotify")
+            await service.get_namespace(SEARCH_ONLY, "spotify", profile="personal")
 
     async def test_get_setting_reports_value_set_source_and_pin(
         self, service: SettingsService
     ) -> None:
-        resolved = await service.get_setting(OWNER, "spotify", "default_market")
+        resolved = await service.get_setting(OWNER, "spotify", "default_market", profile="personal")
         assert (resolved.value, resolved.set_by_account, resolved.source, resolved.pinned) == (
             None,
             False,
             Source.DEFAULT,
             False,
         )
-        await service.set_setting(OWNER, "spotify", "default_market", "GB")
-        resolved = await service.get_setting(OWNER, "spotify", "default_market")
+        await service.set_setting(OWNER, "spotify", "default_market", "GB", profile="personal")
+        resolved = await service.get_setting(OWNER, "spotify", "default_market", profile="personal")
         assert (resolved.value, resolved.set_by_account, resolved.source) == (
             "GB",
             True,
@@ -139,14 +142,16 @@ class TestReads:
 
     async def test_get_setting_refuses_an_unknown_key(self, service: SettingsService) -> None:
         with pytest.raises(UnknownSettingError, match="see describe_settings"):
-            await service.get_setting(OWNER, "spotify", "nope")
+            await service.get_setting(OWNER, "spotify", "nope", profile="personal")
 
     async def test_describe_is_the_same_document_as_get_all(self, service: SettingsService) -> None:
-        assert (await service.describe(OWNER)).etag == (await service.get_all(OWNER)).etag
+        assert (await service.describe(OWNER, profile="personal")).etag == (
+            await service.get_all(OWNER, profile="personal")
+        ).etag
 
     async def test_resolve_for_merges_common_underneath(self, service: SettingsService) -> None:
-        await service.set_setting(OWNER, "common", "timezone", "Europe/Lisbon")
-        document = await service.resolve_for(SPOTIFY_SERVICE, "spotify")
+        await service.set_setting(OWNER, "common", "timezone", "Europe/Lisbon", profile="personal")
+        document = await service.resolve_for(SPOTIFY_SERVICE, "spotify", profile="personal")
         merged = document.namespaces["spotify"]
         assert merged["timezone"].value == "Europe/Lisbon"
         assert "default_market" in merged
@@ -155,12 +160,14 @@ class TestReads:
         self, service: SettingsService
     ) -> None:
         with pytest.raises(NamespaceNotGrantedError):
-            await service.resolve_for(SPOTIFY_SERVICE, "user")
+            await service.resolve_for(SPOTIFY_SERVICE, "user", profile="personal")
 
 
 class TestWrites:
     async def test_set_returns_the_new_revision_and_etag(self, service: SettingsService) -> None:
-        written = await service.set_setting(OWNER, "spotify", "default_market", "GB")
+        written = await service.set_setting(
+            OWNER, "spotify", "default_market", "GB", profile="personal"
+        )
         assert (written.revision, written.etag, written.changed) == (
             1,
             '"account-a.1"',
@@ -169,8 +176,10 @@ class TestWrites:
         assert written.any_change is True
 
     async def test_an_identical_set_is_reported_unchanged(self, service: SettingsService) -> None:
-        await service.set_setting(OWNER, "spotify", "default_market", "GB")
-        written = await service.set_setting(OWNER, "spotify", "default_market", "GB")
+        await service.set_setting(OWNER, "spotify", "default_market", "GB", profile="personal")
+        written = await service.set_setting(
+            OWNER, "spotify", "default_market", "GB", profile="personal"
+        )
         assert written.any_change is False
         assert written.revision == 1
 
@@ -181,22 +190,30 @@ class TestWrites:
         path.write_text(json.dumps({"user": {"grace_days": {"maximum": 60}}}))
         service = build(store, events, tmp_path, clock, load(path))
         with pytest.raises(InvalidSettingValueError, match="may not be above 60"):
-            await service.set_setting(OWNER, "user", "grace_days", 100)
+            await service.set_setting(OWNER, "user", "grace_days", 100, profile="personal")
 
     async def test_a_bad_value_is_refused(self, service: SettingsService) -> None:
         with pytest.raises(InvalidSettingValueError, match="must be true or false"):
-            await service.set_setting(OWNER, "user", "log_values", "false")
+            await service.set_setting(OWNER, "user", "log_values", "false", profile="personal")
 
     async def test_a_credential_is_refused(self, service: SettingsService) -> None:
         with pytest.raises(CredentialRefusedError, match="keyring"):
             await service.set_setting(
-                OWNER, "search", "default_model", "openai:sk-" + "Ab3dEf7h" * 4
+                OWNER,
+                "search",
+                "default_model",
+                "openai:sk-" + "Ab3dEf7h" * 4,
+                profile="personal",
             )
 
     async def test_a_credential_inside_a_list_is_refused(self, service: SettingsService) -> None:
         with pytest.raises(CredentialRefusedError):
             await service.set_setting(
-                OWNER, "search", "disabled_providers", ["fine", "ghp_" + "Ab3dEf7h" * 4]
+                OWNER,
+                "search",
+                "disabled_providers",
+                ["fine", "ghp_" + "Ab3dEf7h" * 4],
+                profile="personal",
             )
 
     async def test_a_pinned_setting_is_a_conflict_never_a_silent_no_op(
@@ -206,7 +223,7 @@ class TestWrites:
             store, events, tmp_path, clock, pinned_policy(tmp_path, user__log_values=False)
         )
         with pytest.raises(SettingPinnedError, match="pinned by this deployment's policy"):
-            await service.set_setting(OWNER, "user", "log_values", True)
+            await service.set_setting(OWNER, "user", "log_values", True, profile="personal")
         assert await events.count_for_account(A) == 0
 
     async def test_pinned_is_reported_before_the_value_is_looked_at(
@@ -218,47 +235,61 @@ class TestWrites:
             store, events, tmp_path, clock, pinned_policy(tmp_path, user__log_values=False)
         )
         with pytest.raises(SettingPinnedError):
-            await service.set_setting(OWNER, "user", "log_values", "not even a boolean")
+            await service.set_setting(
+                OWNER, "user", "log_values", "not even a boolean", profile="personal"
+            )
 
     async def test_an_owner_only_setting_is_refused_for_a_service(
         self, service: SettingsService
     ) -> None:
         with pytest.raises(SettingNotWritableError, match="only be changed by the person"):
-            await service.set_setting(SEARCH_SERVICE, "search", "store_query_history", True)
+            await service.set_setting(
+                SEARCH_SERVICE, "search", "store_query_history", True, profile="personal"
+            )
 
     async def test_an_owner_only_setting_is_allowed_for_the_person(
         self, service: SettingsService
     ) -> None:
-        written = await service.set_setting(OWNER, "search", "store_query_history", True)
+        written = await service.set_setting(
+            OWNER, "search", "store_query_history", True, profile="personal"
+        )
         assert written.any_change is True
 
     async def test_a_service_may_write_within_its_own_namespace(
         self, service: SettingsService, events: SqlEventLog
     ) -> None:
-        await service.set_setting(SPOTIFY_SERVICE, "spotify", "default_market", "PT")
+        await service.set_setting(
+            SPOTIFY_SERVICE, "spotify", "default_market", "PT", profile="personal"
+        )
         (event,) = await events.read(A, limit=1)
         assert event.actor == "service:spotify-api"
         assert event.service == "spotify-api"
 
     async def test_a_service_may_not_write_outside_it(self, service: SettingsService) -> None:
         with pytest.raises(NamespaceNotGrantedError):
-            await service.set_setting(SPOTIFY_SERVICE, "user", "grace_days", 7)
+            await service.set_setting(SPOTIFY_SERVICE, "user", "grace_days", 7, profile="personal")
 
     async def test_if_revision_threads_through(self, service: SettingsService) -> None:
-        await service.set_setting(OWNER, "spotify", "default_market", "GB")
+        await service.set_setting(OWNER, "spotify", "default_market", "GB", profile="personal")
         with pytest.raises(RevisionMismatchError):
-            await service.set_setting(OWNER, "spotify", "default_market", "PT", if_revision=0)
-        written = await service.set_setting(OWNER, "spotify", "default_market", "PT", if_revision=1)
+            await service.set_setting(
+                OWNER, "spotify", "default_market", "PT", if_revision=0, profile="personal"
+            )
+        written = await service.set_setting(
+            OWNER, "spotify", "default_market", "PT", if_revision=1, profile="personal"
+        )
         assert written.revision == 2
 
 
 class TestDocuments:
     async def test_update_merges_rather_than_replaces(self, service: SettingsService) -> None:
         await service.update(
-            OWNER, {"spotify": {"default_market": "GB"}, "common": {"timezone": "Europe/Lisbon"}}
+            OWNER,
+            {"spotify": {"default_market": "GB"}, "common": {"timezone": "Europe/Lisbon"}},
+            profile="personal",
         )
-        await service.update(OWNER, {"spotify": {"default_market": "PT"}})
-        values = (await service.get_all(OWNER)).values()
+        await service.update(OWNER, {"spotify": {"default_market": "PT"}}, profile="personal")
+        values = (await service.get_all(OWNER, profile="personal")).values()
         assert values["spotify"]["default_market"] == "PT"
         assert values["common"]["timezone"] == "Europe/Lisbon"
 
@@ -268,9 +299,13 @@ class TestDocuments:
         # The last key is refused, so the first is not written either.
         with pytest.raises(InvalidSettingValueError):
             await service.update(
-                OWNER, {"spotify": {"default_market": "GB", "max_batch_size": 9999}}
+                OWNER,
+                {"spotify": {"default_market": "GB", "max_batch_size": 9999}},
+                profile="personal",
             )
-        assert (await service.get_all(OWNER)).values()["spotify"]["default_market"] is None
+        assert (await service.get_all(OWNER, profile="personal")).values()["spotify"][
+            "default_market"
+        ] is None
         assert await events.count_for_account(A) == 0
 
     async def test_every_unknown_key_is_named_at_once(self, service: SettingsService) -> None:
@@ -279,13 +314,17 @@ class TestDocuments:
             UnknownSettingsError, match=r"spotify\.markte, spotify\.nope; see describe_settings"
         ):
             await service.update(
-                OWNER, {"spotify": {"nope": 1, "markte": "GB", "default_market": "GB"}}
+                OWNER,
+                {"spotify": {"nope": 1, "markte": "GB", "default_market": "GB"}},
+                profile="personal",
             )
 
     async def test_update_records_one_event_with_the_update_action(
         self, service: SettingsService, events: SqlEventLog
     ) -> None:
-        await service.update(OWNER, {"spotify": {"default_market": "GB", "max_batch_size": 10}})
+        await service.update(
+            OWNER, {"spotify": {"default_market": "GB", "max_batch_size": 10}}, profile="personal"
+        )
         (event,) = await events.read(A, limit=10)
         assert event.action is Action.UPDATE
 
@@ -294,7 +333,7 @@ class TestDocuments:
     ) -> None:
         # "I restored a backup" and "I changed three things" are different answers to
         # "what did I do in March".
-        await service.import_document(OWNER, {"spotify": {"default_market": "GB"}})
+        await service.import_document(OWNER, {"spotify": {"default_market": "GB"}}, version=1)
         (event,) = await events.read(A, limit=10)
         assert event.action is Action.IMPORT
 
@@ -305,17 +344,22 @@ class TestDocuments:
             await service.update(
                 SEARCH_ONLY,
                 {"search": {"safe_search": "strict"}, "spotify": {"default_market": "GB"}},
+                profile="personal",
             )
-        assert (await service.get_all(OWNER)).values()["search"]["safe_search"] == "moderate"
+        assert (await service.get_all(OWNER, profile="personal")).values()["search"][
+            "safe_search"
+        ] == "moderate"
 
 
 class TestResets:
     async def test_reset_setting(self, service: SettingsService) -> None:
-        await service.set_setting(OWNER, "spotify", "default_market", "GB")
-        written = await service.reset_setting(OWNER, "spotify", "default_market")
+        await service.set_setting(OWNER, "spotify", "default_market", "GB", profile="personal")
+        written = await service.reset_setting(
+            OWNER, "spotify", "default_market", profile="personal"
+        )
         assert written.changed == ("spotify.default_market",)
         assert (
-            await service.get_setting(OWNER, "spotify", "default_market")
+            await service.get_setting(OWNER, "spotify", "default_market", profile="personal")
         ).set_by_account is False
 
     async def test_reset_setting_respects_pins_and_ownership(
@@ -325,9 +369,11 @@ class TestResets:
             store, events, tmp_path, clock, pinned_policy(tmp_path, user__log_values=False)
         )
         with pytest.raises(SettingPinnedError):
-            await service.reset_setting(OWNER, "user", "log_values")
+            await service.reset_setting(OWNER, "user", "log_values", profile="personal")
         with pytest.raises(SettingNotWritableError):
-            await service.reset_setting(SEARCH_SERVICE, "search", "store_query_history")
+            await service.reset_setting(
+                SEARCH_SERVICE, "search", "store_query_history", profile="personal"
+            )
 
     async def test_reset_namespace_skips_what_the_caller_may_not_write(
         self, store: SqlSettingsStore, events: SqlEventLog, tmp_path: Path, clock: FakeClock
@@ -335,49 +381,67 @@ class TestResets:
         service = build(
             store, events, tmp_path, clock, pinned_policy(tmp_path, search__safe_search="strict")
         )
-        await service.set_setting(OWNER, "search", "max_content_chars", 5_000)
-        await service.set_setting(OWNER, "search", "store_query_history", True)
+        await service.set_setting(OWNER, "search", "max_content_chars", 5_000, profile="personal")
+        await service.set_setting(OWNER, "search", "store_query_history", True, profile="personal")
 
         # A service clearing the namespace: the pinned key and the owner-only key are
         # skipped rather than refusing the whole request.
         written = await service.reset_namespace(SEARCH_SERVICE, "search")
         assert written.changed == ("search.max_content_chars",)
-        assert (await service.get_setting(OWNER, "search", "store_query_history")).value is True
+        assert (
+            await service.get_setting(OWNER, "search", "store_query_history", profile="personal")
+        ).value is True
+
+    async def test_reset_namespace_skips_a_pinned_account_key(
+        self, store: SqlSettingsStore, events: SqlEventLog, tmp_path: Path, clock: FakeClock
+    ) -> None:
+        service = build(
+            store,
+            events,
+            tmp_path,
+            clock,
+            pinned_policy(tmp_path, search__max_content_chars=40_000),
+        )
+        written = await service.reset_namespace(SEARCH_SERVICE, "search")
+        assert "search.max_content_chars" not in written.changed
 
     async def test_reset_namespace_by_the_owner_clears_owner_only_too(
         self, service: SettingsService
     ) -> None:
-        await service.set_setting(OWNER, "search", "store_query_history", True)
+        await service.set_setting(OWNER, "search", "store_query_history", True, profile="personal")
         written = await service.reset_namespace(OWNER, "search")
         assert "search.store_query_history" in written.changed
 
     async def test_reset_namespace_of_nothing_changes_nothing(
         self, service: SettingsService
     ) -> None:
-        assert (await service.reset_namespace(OWNER, "media")).any_change is False
+        assert (await service.reset_namespace(OWNER, "environments")).any_change is False
 
 
 class TestExport:
     async def test_export_is_sparse(self, service: SettingsService) -> None:
-        await service.set_setting(OWNER, "spotify", "default_market", "GB")
+        await service.set_setting(OWNER, "spotify", "default_market", "GB", profile="personal")
         exported = await service.export(OWNER)
         # Only what was chosen. Defaults are absent so an import elsewhere restores the
         # decisions rather than freezing this deployment's defaults into another one.
-        assert exported.settings == {"spotify": {"default_market": "GB"}}
+        assert exported.settings == {}
+        assert exported.profiles == {"personal": {"spotify": {"default_market": "GB"}}}
         assert exported.version == EXPORT_VERSION
         assert exported.revision == 1
         assert exported.exported_at.startswith("2026-01-01T12:00:00")
 
     async def test_export_is_bounded_by_the_token(self, service: SettingsService) -> None:
-        await service.set_setting(OWNER, "spotify", "default_market", "GB")
-        await service.set_setting(OWNER, "search", "safe_search", "strict")
-        assert (await service.export(SEARCH_ONLY)).settings == {"search": {"safe_search": "strict"}}
+        await service.set_setting(OWNER, "spotify", "default_market", "GB", profile="personal")
+        await service.set_setting(OWNER, "search", "safe_search", "strict", profile="personal")
+        exported = await service.export(SEARCH_ONLY)
+        assert exported.settings == {}
+        assert exported.profiles == {"personal": {"search": {"safe_search": "strict"}}}
 
     async def test_export_excludes_a_retired_key(
         self, service: SettingsService, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        await service.set_setting(OWNER, "spotify", "default_market", "GB")
-        await service.set_setting(OWNER, "spotify", "max_batch_size", 10)
+        await service.set_setting(OWNER, "spotify", "default_market", "GB", profile="personal")
+        await service.set_setting(OWNER, "spotify", "max_batch_size", 10, profile="personal")
         import settings_api.settings.service as module
         from settings_api.domain.registry import live_entries_in
 
@@ -390,29 +454,37 @@ class TestExport:
         )
         # A retired key's rows survive so reverting the catalogue restores them; they are
         # not part of what this person can see or restore today.
-        assert (await service.export(OWNER)).settings == {"spotify": {"default_market": "GB"}}
+        assert (await service.export(OWNER)).profiles == {
+            "personal": {"spotify": {"default_market": "GB"}}
+        }
 
     async def test_export_then_import_round_trips_and_is_idempotent(
         self, service: SettingsService
     ) -> None:
         await service.update(
-            OWNER, {"spotify": {"default_market": "GB"}, "common": {"timezone": "Europe/Lisbon"}}
+            OWNER,
+            {"spotify": {"default_market": "GB"}, "common": {"timezone": "Europe/Lisbon"}},
+            profile="personal",
         )
         exported = await service.export(OWNER)
-        written = await service.import_document(OWNER, exported.settings)
+        written = await service.import_document(
+            OWNER, exported.settings, profiles=exported.profiles
+        )
         assert written.any_change is False
 
 
 class TestEventsAndForget:
     async def test_read_events_pages_newest_first(self, service: SettingsService) -> None:
         for market in ("GB", "PT", "ES"):
-            await service.set_setting(OWNER, "spotify", "default_market", market)
+            await service.set_setting(
+                OWNER, "spotify", "default_market", market, profile="personal"
+            )
         page = await service.read_events(OWNER, limit=2, before=None)
         assert [event.revision for event in page] == [3, 2]
         rest = await service.read_events(OWNER, limit=2, before=page[-1].sequence)
         assert [event.revision for event in rest] == [1]
 
     async def test_forget_returns_the_count(self, service: SettingsService) -> None:
-        await service.set_setting(OWNER, "spotify", "default_market", "GB")
+        await service.set_setting(OWNER, "spotify", "default_market", "GB", profile="personal")
         assert await service.forget(OWNER) == 1
-        assert (await service.get_all(OWNER)).revision == 0
+        assert (await service.get_all(OWNER, profile="personal")).revision == 0

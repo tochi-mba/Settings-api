@@ -46,8 +46,9 @@ class TestThePragmasAreInForce:
             "VALUES ('a', 0, 't', 't')"
         )
         await database.execute(
-            "INSERT INTO settings (account_id, namespace, key, value_json, set_at, set_by) "
-            "VALUES ('a', 'spotify', 'default_market', '\"GB\"', 't', 'settings')"
+            "INSERT INTO settings "
+            "(account_id, profile, namespace, key, value_json, set_at, set_by) "
+            "VALUES ('a', '*', 'spotify', 'default_market', '\"GB\"', 't', 'settings')"
         )
         await database.execute("DELETE FROM accounts WHERE account_id = 'a'")
         assert await database.count("SELECT count(*) AS total FROM settings") == 0

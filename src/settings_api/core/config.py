@@ -121,8 +121,8 @@ class ServiceConfig(BaseModel):
 
     Three fields, and the middle one is the one that matters. ``audience_prefix`` is the
     audience family the *end user's* token must belong to, and it is what stops a
-    compromised service from reading anybody's settings: media-tool may only present
-    tokens minted for media-tool. Without it, anything able to reach this service with any
+    compromised service from reading anybody's settings: a service may only present
+    tokens minted for itself. Without it, anything able to reach this service with any
     service token could read any account -- the confused deputy, moved from inside one
     process into the gap between two.
     """

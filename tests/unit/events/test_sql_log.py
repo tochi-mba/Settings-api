@@ -179,8 +179,11 @@ class TestDeletion:
             (ACCOUNT,),
         )
         await database.execute(
-            "INSERT INTO settings (account_id, namespace, key, value_json, set_at, set_by) "
-            "VALUES (?, 'spotify', 'default_market', '\"GB\"', 't', 'settings')",
+            (
+                "INSERT INTO settings "
+                "(account_id, profile, namespace, key, value_json, set_at, set_by) "
+                "VALUES (?, '*', 'spotify', 'default_market', '\"GB\"', 't', 'settings')"
+            ),
             (ACCOUNT,),
         )
         await append(database, events, namespace="spotify", key="default_market")

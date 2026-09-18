@@ -63,8 +63,8 @@ is `SETTINGS_API_SERVICES`, and the blast radius of one compromised service toke
 exactly the namespaces on its entry.
 
 The audience check is what stops a stolen service token being enough: the person's token
-must belong to that service's own audience family, so `media-tool` may present tokens
-minted for `media-tool` and nothing else.
+must belong to that service's own audience family, so a consuming service may present
+tokens minted for itself and nothing else.
 
 ## Outages are declared, per setting
 
@@ -73,6 +73,18 @@ Each entry says what a consuming service should do when this service cannot be r
 falling back would quietly override a restriction somebody asked for. Everything else
 falls back, because an outage here must not become an outage in seven other services.
 See [ADR-0006](adr/0006-on-unavailable-is-declared-per-setting.md).
+
+## Account-wide vs profile-wide
+
+A setting is either one value for the person or one value per keyring profile, never
+both. Overlay of the same key would be a second settings system. The catalogue declares
+the level on the entry; the default is account, so a restriction nobody thought about
+cannot quietly split across profiles. `common` is forced account-scoped:
+`common.default_profile` names a profile and cannot itself be per-profile.
+
+Storage is `(account_id, profile, namespace, key)`. Account rows live under the sentinel
+`*`, which keyring's profile-name pattern refuses. See
+[ADR-0002](adr/0002-settings-are-per-account-not-per-profile.md) as amended.
 
 ## Storage
 

@@ -21,7 +21,7 @@ configuring would refuse.
 
 from __future__ import annotations
 
-from settings_api.domain.types import OnUnavailable, Origin, SettingDef, SettingType
+from settings_api.domain.types import OnUnavailable, Origin, SettingDef, SettingScope, SettingType
 
 NAMESPACE = "spotify"
 
@@ -29,6 +29,7 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
         namespace=NAMESPACE,
         key="default_market",
+        scope=SettingScope.PROFILE,
         value_type=SettingType.STR,
         default=None,
         nullable=True,
@@ -54,6 +55,7 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
         namespace=NAMESPACE,
         key="max_batch_size",
+        scope=SettingScope.PROFILE,
         value_type=SettingType.INT,
         default=50,
         minimum=1,
@@ -76,6 +78,7 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
         namespace=NAMESPACE,
         key="confirm_timeout_seconds",
+        scope=SettingScope.PROFILE,
         value_type=SettingType.INT,
         default=15,
         minimum=5,
@@ -121,6 +124,90 @@ SETTINGS: tuple[SettingDef, ...] = (
             "Worth knowing before relying on it: spotify-api's job store is in memory, so "
             "these records are lost on restart and are not shared between replicas. This "
             "sets a ceiling on how long they live, not a floor."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="default_device",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.STR,
+        default=None,
+        nullable=True,
+        max_chars=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(None,),
+        origin=Origin.PROPOSED,
+        origin_note=(
+            "New here. spotify-api plays on whichever device Spotify last used; it has no "
+            "per-account default device."
+        ),
+        summary="Which speaker or computer to play on when the request does not name one.",
+        description=(
+            "A Spotify device id, not a nickname. Null means 'whatever is already active', "
+            "which is what spotify-api does today and is therefore the conservative fallback: "
+            "an outage does not start blasting a kitchen speaker somebody turned off.\n\n"
+            "This is playback routing, not what the model sees. Whether now-playing appears "
+            "in the prompt is Lucy's `feeds_music_*` switches."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="shuffle_on_play",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.BOOL,
+        default=False,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(False,),
+        origin=Origin.PROPOSED,
+        origin_note="New here. spotify-api forwards shuffle per request and has no stored default.",
+        summary="Whether a new play starts shuffled unless the request says otherwise.",
+        description=(
+            "Off leaves the queue in the order it was written. On shuffles at the start of "
+            "playback, not mid-track.\n\n"
+            "Off is conservative and is today's behaviour, so an outage never shuffles a "
+            "playlist somebody had carefully ordered."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="repeat_mode",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.ENUM,
+        default="off",
+        choices=("off", "track", "context"),
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=("off",),
+        origin=Origin.PROPOSED,
+        origin_note="New here. spotify-api forwards repeat per request and has no stored default.",
+        summary="Whether a new play repeats the track, the queue, or neither.",
+        description=(
+            "`off` plays through and stops. `track` loops one song. `context` loops the "
+            "album or playlist.\n\n"
+            "`off` is conservative because it is today's behaviour and because looping a "
+            "track somebody did not ask to loop is the worse of the two surprises."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="allow_explicit",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.BOOL,
+        default=True,
+        on_unavailable=OnUnavailable.REFUSE,
+        origin=Origin.PROPOSED,
+        origin_note="New here. spotify-api passes searches through and does not filter on the explicit flag.",
+        summary="Whether tracks marked explicit may be returned and played.",
+        description=(
+            "Off, a track the catalogue marks explicit is left out of results and refused "
+            "for playback, and the clean version is offered where one exists. The flag is "
+            "the label the rights holder applied, so it is imperfect in both directions -- "
+            "this narrows what is offered rather than promising anything about content.\n\n"
+            "**This refuses rather than falling back.** On is the default because it is how "
+            "the service works, so landing on it during an outage would play explicit "
+            "material to somebody who had turned it off -- often on a speaker, in a room, in "
+            "front of the people they turned it off for. A search that fails is retried; a "
+            "track already playing is not."
         ),
     ),
 )

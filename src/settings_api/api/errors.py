@@ -46,6 +46,7 @@ from settings_api.domain.errors import (
     RevisionMismatchError,
     SettingNotWritableError,
     SettingPinnedError,
+    SettingScopeError,
     UnknownNamespaceError,
     UnknownSettingError,
     UnknownSettingsError,
@@ -94,6 +95,7 @@ _DOMAIN_STATUS: dict[type[Exception], int] = {
     RevisionMismatchError: status.HTTP_412_PRECONDITION_FAILED,
     InvalidSettingValueError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     CredentialRefusedError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    SettingScopeError: status.HTTP_422_UNPROCESSABLE_CONTENT,
 }
 
 

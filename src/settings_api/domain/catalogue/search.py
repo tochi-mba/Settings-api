@@ -18,7 +18,7 @@ below needs a change there before it means anything.
 
 from __future__ import annotations
 
-from settings_api.domain.types import OnUnavailable, Origin, SettingDef, SettingType
+from settings_api.domain.types import OnUnavailable, Origin, SettingDef, SettingScope, SettingType
 
 NAMESPACE = "search"
 
@@ -26,6 +26,7 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
         namespace=NAMESPACE,
         key="default_model",
+        scope=SettingScope.PROFILE,
         value_type=SettingType.STR,
         default=None,
         nullable=True,
@@ -52,6 +53,7 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
         namespace=NAMESPACE,
         key="search_backend",
+        scope=SettingScope.PROFILE,
         value_type=SettingType.ENUM,
         default="google",
         choices=("google", "searxng"),
@@ -125,6 +127,7 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
         namespace=NAMESPACE,
         key="safe_search",
+        scope=SettingScope.PROFILE,
         value_type=SettingType.ENUM,
         default="moderate",
         choices=("off", "moderate", "strict"),
@@ -172,6 +175,57 @@ SETTINGS: tuple[SettingDef, ...] = (
             "keeping. Turning it on has to be the person's own act, with a token they minted "
             "for settings itself.\n\n"
             "Off is conservative and is what an outage lands on: nothing is kept."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="default_result_count",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.INT,
+        default=8,
+        minimum=1,
+        maximum=20,
+        operator_clampable=True,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(8,),
+        origin=Origin.PROPOSED,
+        origin_note=(
+            "New here. web-search-api takes a count per request; this is the default it "
+            "should use when the request omits one."
+        ),
+        summary="How many results a search returns when the request does not ask for a number.",
+        description=(
+            "More results are more of the web in the prompt and a larger bill. Fewer are "
+            "more round trips. Twenty is the owning service's own ceiling, expressed here "
+            "so a person may lower it and never raise it past what the service will serve.\n\n"
+            "Eight is a typical default and the fallback, so an outage neither floods the "
+            "prompt nor starves a lookup that expected a handful of hits."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="recency_days",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.INT,
+        default=None,
+        nullable=True,
+        minimum=1,
+        maximum=365,
+        operator_clampable=True,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(None,),
+        origin=Origin.PROPOSED,
+        origin_note=(
+            "New here. web-search-api has a recency filter on some providers and no "
+            "per-account default."
+        ),
+        summary="How recent a result must be, in days, when the request does not say.",
+        description=(
+            "Null means no recency filter, which is what the service does today and is "
+            "therefore the conservative fallback: an outage does not hide a year-old page "
+            "somebody needed. A number of 1 means 'today', 7 a week, 365 a year.\n\n"
+            "This is a search preference, not a prompt line. Which backend is in force in "
+            "the live block is Lucy's `feeds_research_backend`."
         ),
     ),
 )

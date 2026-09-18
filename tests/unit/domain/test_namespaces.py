@@ -19,43 +19,47 @@ from settings_api.domain.namespaces import (
     require_known,
 )
 
-MEDIA = ServiceGrant(
-    service="media-tool", audience_prefix="media-tool", namespaces=frozenset({"media"})
+DOWNSTREAM = ServiceGrant(
+    service="downstream-tool",
+    audience_prefix="downstream-tool",
+    namespaces=frozenset({"environments"}),
 )
-ALLOWED = ("common", "media", "search", "spotify", "user")
+ALLOWED = ("common", "environments", "search", "spotify", "user")
 
 
 class TestWhatAServiceMayRead:
     def test_its_own_namespace(self) -> None:
-        assert MEDIA.grants("media") is True
+        assert DOWNSTREAM.grants("environments") is True
 
     def test_common_without_being_listed(self) -> None:
         # The block every service needs and none owns. A deployment that had to remember
         # to add it to six grants would eventually forget it in one.
-        assert MEDIA.grants(COMMON) is True
+        assert DOWNSTREAM.grants(COMMON) is True
 
     @pytest.mark.parametrize("namespace", ["user", "search", "spotify", "keyring", "nope"])
     def test_nothing_else(self, namespace: str) -> None:
         # The blast radius of one compromised service token is exactly its namespaces.
-        assert MEDIA.grants(namespace) is False
+        assert DOWNSTREAM.grants(namespace) is False
 
     def test_require_names_the_service_and_the_namespace(self) -> None:
         with pytest.raises(
-            NamespaceNotGrantedError, match="media-tool is not granted the user namespace"
+            NamespaceNotGrantedError, match="downstream-tool is not granted the user namespace"
         ):
-            MEDIA.require("user")
+            DOWNSTREAM.require("user")
 
     def test_require_is_silent_for_a_granted_namespace(self) -> None:
-        MEDIA.require("media")
-        MEDIA.require(COMMON)
+        DOWNSTREAM.require("environments")
+        DOWNSTREAM.require(COMMON)
 
 
 class TestWhoseTokensAServiceMayPresent:
     """THE check. Without it a static service token plus any user token reads any account."""
 
-    @pytest.mark.parametrize("audience", ["media-tool", "media-tool.jobs", "media-tool.a.b"])
+    @pytest.mark.parametrize(
+        "audience", ["downstream-tool", "downstream-tool.jobs", "downstream-tool.a.b"]
+    )
     def test_its_own_family(self, audience: str) -> None:
-        assert MEDIA.accepts_audience(audience) is True
+        assert DOWNSTREAM.accepts_audience(audience) is True
 
     @pytest.mark.parametrize(
         "audience",
@@ -63,22 +67,23 @@ class TestWhoseTokensAServiceMayPresent:
             "settings",
             "spotify",
             "user",
-            "media",
-            "media-toolkit",
-            "xmedia-tool",
-            "media-tool-2",
+            "environments",
+            "downstream-toolkit",
+            "xdownstream-tool",
+            "downstream-tool-2",
             "",
             ".",
         ],
     )
     def test_nothing_else(self, audience: str) -> None:
-        assert MEDIA.accepts_audience(audience) is False
+        assert DOWNSTREAM.accepts_audience(audience) is False
 
     def test_the_separator_is_what_stops_one_prefix_being_a_prefix_of_another(self) -> None:
-        # "media-toolkit" starts with "media-tool". Plain startswith would accept it, and a
-        # service called media-toolkit would then be able to present media-tool's tokens.
-        assert MEDIA.accepts_audience("media-toolkit") is False
-        assert MEDIA.accepts_audience("media-tool.kit") is True
+        # "downstream-toolkit" starts with "downstream-tool". Plain startswith would accept
+        # it, and a service called downstream-toolkit would then be able to present
+        # downstream-tool's tokens.
+        assert DOWNSTREAM.accepts_audience("downstream-toolkit") is False
+        assert DOWNSTREAM.accepts_audience("downstream-tool.kit") is True
 
 
 class TestWhatAPersonsTokenGrants:
@@ -95,11 +100,11 @@ class TestWhatAPersonsTokenGrants:
         ) == frozenset({"search", "common"})
 
     def test_a_token_for_another_service_is_refused(self) -> None:
-        # The case that matters most: a media-tool token presented on the person-facing
-        # surface. Verifying it against our audience would fail anyway; this is where it
-        # is named.
+        # The case that matters most: another service's token presented on the
+        # person-facing surface. Verifying it against our audience would fail anyway; this
+        # is where it is named.
         with pytest.raises(NamespaceNotGrantedError, match="is not in the 'settings' family"):
-            granted_namespaces("media-tool", prefix="settings", allowed=ALLOWED)
+            granted_namespaces("downstream-tool", prefix="settings", allowed=ALLOWED)
 
     def test_a_dotted_audience_from_another_family_is_refused(self) -> None:
         with pytest.raises(NamespaceNotGrantedError, match="not in the 'settings' family"):
@@ -118,29 +123,30 @@ class TestWhatAPersonsTokenGrants:
 
     def test_allowed_may_be_any_iterable(self) -> None:
         assert granted_namespaces(
-            "settings.media", prefix="settings", allowed=iter(["media"])
-        ) == frozenset({"media", "common"})
+            "settings.environments", prefix="settings", allowed=iter(["environments"])
+        ) == frozenset({"environments", "common"})
 
 
 class TestRequireKnown:
     def test_a_known_namespace_is_silent(self) -> None:
-        require_known("media", known=ALLOWED)
+        require_known("environments", known=ALLOWED)
 
     def test_an_unknown_one_names_what_exists(self) -> None:
         # Checked before the grant, so a caller that misspells a namespace it DOES hold is
         # told it misspelled it, rather than sent looking for a permissions problem.
         with pytest.raises(
-            UnknownNamespaceError, match="no namespace 'medai'; this build has common, media"
+            UnknownNamespaceError,
+            match="no namespace 'enviroments'; this build has common, environments",
         ):
-            require_known("medai", known=ALLOWED)
+            require_known("enviroments", known=ALLOWED)
 
 
 class TestRequireGranted:
     def test_a_granted_namespace_is_silent(self) -> None:
-        require_granted("media", granted={"media", "common"})
+        require_granted("environments", granted={"environments", "common"})
 
     def test_an_ungranted_one_is_a_fact_about_the_token(self) -> None:
         with pytest.raises(
             NamespaceNotGrantedError, match="this token does not grant the user namespace"
         ):
-            require_granted("user", granted={"media", "common"})
+            require_granted("user", granted={"environments", "common"})

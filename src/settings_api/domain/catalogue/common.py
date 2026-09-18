@@ -7,7 +7,7 @@ person would answer it once per service and get it wrong in one of them.
 ``default_profile`` is the one that resolves an existing disagreement rather than
 proposing a new convenience, and it is worth being precise about what that disagreement
 is. spotify-api and web-search-api each carry their own ``keyring_default_profile``,
-defaulting to ``"personal"``; media-tool carries a ``default_profile`` defaulting to
+defaulting to ``"personal"``; another carries a ``default_profile`` defaulting to
 ``"default"``. keyring itself has no notion of a default profile at all -- every one of
 its routes takes the profile as a required path segment with no fallback -- so the
 question "which profile do you mean when I don't say" has, today, three answers and no
@@ -116,7 +116,7 @@ SETTINGS: tuple[SettingDef, ...] = (
         origin=Origin.EXISTING,
         origin_note=(
             "Replaces spotify-api's `keyring_default_profile` and web-search-api's "
-            "`WSA_KEYRING_DEFAULT_PROFILE` (both 'personal'), and media-tool's "
+            "`WSA_KEYRING_DEFAULT_PROFILE` (both 'personal'), and a third service's "
             "`default_profile` ('default'). keyring itself has no such notion."
         ),
         summary="Which keyring profile a service should use when the request does not name one.",
@@ -165,23 +165,47 @@ SETTINGS: tuple[SettingDef, ...] = (
         conservative_values=(1,),
         origin=Origin.EXISTING,
         origin_note=(
-            "The same knob in three services with three spellings: media-tool's "
-            "`job_ttl_seconds`, spotify-api's `job_ttl_seconds` and web-search-api's "
-            "`WSA_JOB_RETENTION_SECONDS`. All three default to one hour."
+            "The same knob in three services with three spellings: spotify-api's "
+            "`job_ttl_seconds`, web-search-api's `WSA_JOB_RETENTION_SECONDS`, and a "
+            "third service's own `job_ttl_seconds`. All three default to one hour."
         ),
         summary="How long the record of a finished background job stays readable.",
         description=(
             "The record, not the result: what was asked for, when, whether it worked and "
             "why not. Three services keep one of these and each had its own deployment-wide "
             "number, so this is the general answer for all of them.\n\n"
-            "A namespace may override it -- `media.job_retention_hours` does, because a "
-            "download job's record sits beside a file on disk, and `spotify.job_retention_hours` "
-            "does, because spotify-api's own ceiling is 24 hours rather than a week. Where a "
+            "A namespace may override it -- `spotify.job_retention_hours` does, because "
+            "spotify-api's own ceiling is 24 hours rather than a week, and a namespace "
+            "whose job leaves a file on a shared disk has its own reason to. Where a "
             "namespace has its own, that one wins; where it does not, this is what the "
             "service reads. That override is the reason `common` is merged *underneath* a "
             "namespace rather than over it.\n\n"
             "One hour is the short end and is therefore the safe fallback: an outage that "
             "landed here forgets somebody's job record sooner than they asked, not later."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="currency",
+        value_type=SettingType.STR,
+        default=None,
+        nullable=True,
+        max_chars=3,
+        pattern=r"^[A-Z]{3}$",
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(None,),
+        origin=Origin.PROPOSED,
+        origin_note="New here. Every service that quotes a cost today quotes it in whatever it was billed in.",
+        summary="Which currency to state a cost in, as an ISO 4217 code such as GBP or EUR.",
+        description=(
+            "Anything in the family that puts a number on what something cost -- a token "
+            "budget, a spend warning, a subscription -- says it in this. Null means derive "
+            "it from `locale`, which is right often enough to be the default and wrong for "
+            "everybody who lives in one country and is billed in another.\n\n"
+            "Presentation only. Nothing is converted, recharged or recorded differently "
+            "because of it, and a service that cannot convert says what it was billed in "
+            "rather than guessing a rate. Null is conservative because it changes nothing: "
+            "an outage that landed on it shows the same number in the same place as today."
         ),
     ),
 )

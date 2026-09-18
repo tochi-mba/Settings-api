@@ -160,4 +160,26 @@ SETTINGS: tuple[SettingDef, ...] = (
             "owns the rule."
         ),
     ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="notify_on_credential_change",
+        value_type=SettingType.BOOL,
+        default=True,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(True,),
+        origin=Origin.PROPOSED,
+        origin_note="New here. keyring records a credential write in its audit log and sends nothing.",
+        summary="Whether to say so when a stored credential is added, replaced or removed.",
+        description=(
+            "The counterpart to `notify_on_new_session`, for the event a step further in: "
+            "somebody already inside the account taking or replacing the keys to everything "
+            "else. A credential write is rare and deliberate, so a notice about one is "
+            "almost never noise, and the one time it is unexpected it is the only warning "
+            "there will be.\n\n"
+            "Subordinate to `email_notifications`: with that off, this changes nothing. On "
+            "is conservative and is what an outage lands on -- an unwanted email is an "
+            "annoyance, and an unnoticed credential replacement is the failure it exists "
+            "to catch."
+        ),
+    ),
 )

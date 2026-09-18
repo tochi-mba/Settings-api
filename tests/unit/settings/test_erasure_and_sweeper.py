@@ -47,7 +47,7 @@ class TestErasure:
             clock=clock,
             config=build_settings(tmp_path),
         )
-        await service.set_setting(OWNER, "spotify", "default_market", "GB")
+        await service.set_setting(OWNER, "spotify", "default_market", "GB", profile="personal")
         await service.set_setting(OWNER, "common", "timezone", "Europe/Lisbon")
         erasure = Erasure(database=database, service=service)
 
@@ -172,7 +172,7 @@ class TestSweeping:
         removed = await sweeper(store, database, clock).sweep_once()
 
         assert removed == 2
-        assert "spotify.old_market" not in (await store.read(A)).rows
+        assert ("*", "spotify.old_market") not in (await store.read(A)).rows
         assert (await events.read("account-b", limit=1))[0].action is Action.PURGE_RETIRED
         wal = database.path.with_name(database.path.name + "-wal")
         assert wal.stat().st_size == 0

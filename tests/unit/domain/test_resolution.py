@@ -128,6 +128,10 @@ class TestResolveNamespace:
             "max_batch_size",
             "confirm_timeout_seconds",
             "job_retention_hours",
+            "default_device",
+            "shuffle_on_play",
+            "repeat_mode",
+            "allow_explicit",
         }
         assert all(isinstance(item, Resolved) for item in resolved.values())
 
@@ -163,15 +167,15 @@ class TestResolveForService:
         assert merged["default_market"].namespace == "spotify"
 
     def test_the_namespace_wins_on_a_collision(self) -> None:
-        # Not theoretical: common and media both define job_retention_hours. Defined this
+        # Not theoretical: common and spotify both define job_retention_hours. Defined this
         # way round so a new common key can never silently override a service's own.
         merged = resolve_for_service(
-            "media", stored={"common.job_retention_hours": 99}, policy=NO_POLICY
+            "spotify", stored={"common.job_retention_hours": 99}, policy=NO_POLICY
         )
         item = merged["job_retention_hours"]
-        assert item.namespace == "media"
+        assert item.namespace == "spotify"
         assert item.value == 1
-        assert item.definition.maximum == 168
+        assert item.definition.maximum == 24
 
     def test_a_namespace_without_its_own_gets_the_common_answer(self) -> None:
         merged = resolve_for_service(

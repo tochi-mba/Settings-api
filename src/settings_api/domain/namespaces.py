@@ -13,7 +13,8 @@ search preferences and may not touch erasure policy. :func:`granted_namespaces` 
 it, from the verified ``aud`` and from nothing else.
 
 **Service-facing.** A configured :class:`ServiceGrant` says which namespaces the service
-may see. media-tool cannot read ``user.erasure_mode``: a service learns only what it needs
+may see. A downstream service cannot read ``user.erasure_mode``: a service learns only
+what it needs
 to do its job, and the blast radius of one compromised service token is one namespace.
 
 ## Why `common` is readable by everyone
@@ -71,13 +72,13 @@ class ServiceGrant:
         **This is the check the whole service-facing surface rests on.** Without it,
         anything able to reach this service with any service token could present any
         user's token for any service and read that person's settings: the confused deputy,
-        moved from inside one process into the gap between two. media-tool may present
-        only tokens minted for media-tool.
+        moved from inside one process into the gap between two. A consuming service may
+        present only tokens minted for itself.
 
-        The prefix must match either exactly or as an audience family, so ``media-tool``
-        accepts ``media-tool`` and ``media-tool.jobs`` and refuses ``media-toolkit`` --
-        the separator is required, which is what stops one service's prefix from being a
-        prefix of another's name.
+        The prefix must match either exactly or as an audience family, so a service whose
+        prefix is ``example-tool`` accepts ``example-tool`` and ``example-tool.jobs`` and
+        refuses ``example-toolkit`` -- the separator is required, which is what stops one
+        service's prefix from being a prefix of another's name.
         """
         return audience == self.audience_prefix or audience.startswith(
             self.audience_prefix + AUDIENCE_SEPARATOR
@@ -120,7 +121,7 @@ def granted_namespaces(audience: str, *, prefix: str, allowed: Iterable[str]) ->
 
     head, separator, namespace = audience.partition(AUDIENCE_SEPARATOR)
     if not separator or head != prefix:
-        # Includes the case that matters most: a token minted for `media-tool` presented
+        # Includes the case that matters most: a token minted for another service presented
         # on the person-facing surface. Verifying it against our own audience would have
         # failed anyway, but this is where it is named.
         msg = f"audience {audience!r} is not in the {prefix!r} family"

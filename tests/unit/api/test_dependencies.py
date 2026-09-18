@@ -17,7 +17,7 @@ from settings_api.api.dependencies import (
 )
 from settings_api.auth.tokens import Identity
 from settings_api.domain.errors import RevisionMismatchError
-from tests.conftest import MEDIA_TOKEN, SPOTIFY_TOKEN, auth, service_auth, token
+from tests.conftest import DOWNSTREAM_TOKEN, SPOTIFY_TOKEN, auth, service_auth, token
 from tests.fakes.keyring import FakeKeyring, mint
 
 ME = Identity(account_id="account-a", audience="settings", namespaces=frozenset())
@@ -77,8 +77,8 @@ class TestTheServiceFacingDependency:
         self, client: AsyncClient
     ) -> None:
         response = await client.get(
-            "/v1/internal/settings/media",
-            headers=service_auth(MEDIA_TOKEN, mint(audience="spotify")),
+            "/v1/internal/settings/environments",
+            headers=service_auth(DOWNSTREAM_TOKEN, mint(audience="spotify")),
         )
         assert response.status_code == 401
 

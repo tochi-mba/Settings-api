@@ -23,8 +23,8 @@ question, and the compartment it creates is concrete: an assistant that may set 
 preferences and may not touch erasure policy, because the person minted it a token that
 says so.
 
-**Service-facing.** A configured `ServiceGrant` names the namespaces. media-tool is granted
-`media`, so media-tool cannot read `user.erasure_mode`. The blast radius of one compromised
+**Service-facing.** A configured `ServiceGrant` names the namespaces. web-search-api is
+granted `search`, so it cannot read `user.erasure_mode`. The blast radius of one compromised
 service token is exactly that service's namespace list.
 
 ## The check the service-facing surface rests on
@@ -36,11 +36,11 @@ line, and everything on `/v1/internal` depends on it.
 Without it, a service token -- a static string in a deployment's configuration, not
 something a person mints -- plus any user token would read any account. Anything able to
 reach this service with spotify-api's token could pair it with a token minted for
-media-tool and read that person's settings. With it, media-tool may present only tokens
-minted for media-tool.
+another service and read that person's settings. With it, a service may present only
+tokens minted for itself.
 
-The separator is required. `media-toolkit` begins with `media-tool`, and plain
-`startswith` would accept it; requiring `media-tool.` is what stops one service's prefix
+The separator is required. `example-toolkit` begins with `example-tool`, and plain
+`startswith` would accept it; requiring `example-tool.` is what stops one service's prefix
 from being a prefix of another's name.
 
 And two services sharing a token is a startup error, because the constant-time comparison
@@ -57,7 +57,7 @@ Lisbon.
 It is merged **underneath** a namespace, with the namespace winning on a key collision, so
 that adding a key to `common` can never silently change what an existing namespace resolves
 to. That rule is exercised rather than theoretical: `common.job_retention_hours` is
-overridden by both `media.job_retention_hours` and `spotify.job_retention_hours`, because
+overridden by `spotify.job_retention_hours`, because
 the owning services' ceilings differ.
 
 ## The error mapping, and why it is the opposite of user-api's
@@ -74,7 +74,7 @@ looking for the wrong problem.
 
 ## What it costs
 
-Granularity below a namespace is not expressible. media-tool gets all six `media` settings
+Granularity below a namespace is not expressible. web-search-api gets all eight `search` settings
 or none of them. Per-setting grants were considered and rejected: they are configuration
 nobody would keep correct, and the namespace boundary already matches the service
 boundary, which is the boundary a compromised token actually has.

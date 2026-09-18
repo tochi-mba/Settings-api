@@ -144,7 +144,7 @@ class TestAudiencePrefix:
     def test_the_default_family_is_settings(self) -> None:
         assert make_settings().audience_prefix == "settings"
 
-    @pytest.mark.parametrize("prefix", ["settings", "media-tool", "s", "settings_api"])
+    @pytest.mark.parametrize("prefix", ["settings", "downstream-tool", "s", "settings_api"])
     def test_a_prefix_with_no_dot_is_accepted(self, prefix: str) -> None:
         assert make_settings(audience_prefix=prefix).audience_prefix == prefix
 
@@ -184,7 +184,7 @@ class TestAllowedNamespaces:
         assert settings.allowed_namespaces == ("user", "common")
 
     @pytest.mark.parametrize(
-        "namespace", ["spotifyy", "SPOTIFY", "", "common.timezone", "media-tool", "settings"]
+        "namespace", ["spotifyy", "SPOTIFY", "", "common.timezone", "downstream-tool", "settings"]
     )
     def test_a_namespace_that_is_not_in_the_catalogue_is_refused(self, namespace: str) -> None:
         # Refused at startup, where it is a typo, rather than at request time, where it is

@@ -32,8 +32,9 @@ Two checks then apply, and the second is the one that matters:
 1. The service token is compared, in constant time and without an early return, against
    every configured service. That decides which grant is in play.
 2. **The user token's audience must belong to that service's own audience family.**
-   `media-tool` may present `media-tool` and `media-tool.jobs`, and nothing else. A token
-   minted for `spotify-api`, or the person's own `settings`-audience token, is refused
+   A service whose prefix is `example-tool` may present `example-tool` and
+   `example-tool.jobs`, and nothing else. A token minted for another service, or the
+   person's own `settings`-audience token, is refused
    with a 401. Without this check a static service token plus any user token would read
    any account.
 
@@ -46,7 +47,8 @@ call is a 401. This service's test suite deliberately uses a prefix that differs
 service name, to prove the two are independent strings in code; do not copy it.
 
 A service may read and write **only the namespaces it was granted**, plus `common`, which
-every service gets. `media-tool` asking for `user` is a 403 with a body that says so.
+every service gets. A downstream service asking for `user` is a 403 with a body that
+says so.
 
 ### Nothing about this needs a change in keyring
 
@@ -61,8 +63,8 @@ here.
 One namespace, with `common` merged **underneath** it — the namespace wins on a key
 collision. That merge order is not decorative: `common.job_retention_hours` is the general
 answer to "how long do you keep the record of my finished jobs", and
-`media.job_retention_hours` and `spotify.job_retention_hours` override it where the owning
-service's own ceiling is different. Adding a key to `common` can therefore never silently
+`spotify.job_retention_hours` overrides it where the owning service's own ceiling is
+different. Adding a key to `common` can therefore never silently
 change what an existing namespace resolves to.
 
 The response also carries a **`fallbacks`** block: for each key, the deployment's default
@@ -70,6 +72,12 @@ and what to do when settings-api is unreachable. Cache it with the values. It is
 a client behave correctly during an outage without shipping its own copy of the catalogue —
 a copy that would drift, and would drift silently, because the only time it is read is
 during an outage when nobody is looking.
+
+Pass `profile=` when the caller is acting inside a keyring profile. Profile-scoped keys
+(Spotify's market, Lucy's model, which shell a workspace starts) resolve for that name;
+account-scoped keys (erasure, spend ceilings, `disabled_providers`) always come along.
+Omitting it reads catalogue defaults for the profile-scoped keys. A write of a
+profile-scoped key without it is a 422.
 
 ---
 
@@ -89,21 +97,22 @@ settings = HttpSettingsClient(
 )
 
 # At the call site.
-resolved = await settings.resolve("spotify", user_token=caller.token)
+resolved = await settings.resolve("spotify", user_token=caller.token, profile=caller.profile)
 market = resolved["default_market"]
 ```
 
 ### What the client does for you
 
-**Caching, keyed by the token.** Not by account id — and the reason is a vulnerability, so
-it is worth knowing. The obvious design reads `sub` out of the user token without
-verifying it and caches by that. But this client does not verify tokens (that is
-settings-api's job, and putting a JWKS fetch into every consuming service is what this
+**Caching, keyed by the token and the profile.** Not by account id — and the reason is a
+vulnerability, so it is worth knowing. The obvious design reads `sub` out of the user
+token without verifying it and caches by that. But this client does not verify tokens (that
+is settings-api's job, and putting a JWKS fetch into every consuming service is what this
 family avoids), so an unverified `sub` is a string the caller supplied. Anything that could
 hand your service a forged token claiming `sub: victim` would be served the victim's cached
 settings **without a request to settings-api ever being made** — the server's authorisation
 bypassed by the cache in front of it. So nothing is ever served for a token settings-api
-has not authorised at least once.
+has not authorised at least once. The profile is part of the key so two credential sets
+of the same person do not share a resolved document.
 
 Tokens are short-lived, which sounds like it defeats the cache and does not: within one
 token's life you serve from memory and revalidate with `If-None-Match` (a 304 in the steady
@@ -354,31 +363,35 @@ mean for my data" once does not answer a differently-shaped version of it.
 `max_value_list_items`, `max_value_object_keys`, `max_note_body_chars`, `max_events`,
 `recall_max_limit`, `audience`, and every keyring and storage setting.
 
-### 3.4 media-tool — namespace `media`
+### 3.4 A service this repository does not name — its own namespace
 
-Verified against media-tool's `core/config.py`: every attribute named below exists under
-that name, with the default the catalogue entry records.
+Not every member of the family is public, and a public repository never names a private
+one: no module, no grant in a sample, no helpful example in a docstring. See
+[ADR-0011](../../docs/adr/0011-private-services-are-extensions.md).
 
-| Setting | Replaces |
-| --- | --- |
-| `media.artifact_retention_hours` | `artifact_ttl_seconds` |
-| `media.job_retention_hours` | `job_ttl_seconds` |
-| `media.concurrent_jobs` | `max_active_jobs_per_account` |
-| `media.max_file_gb` | `max_file_bytes` |
-| `media.delete_artifact_after_download` | *proposed* |
-| `media.preferred_quality` | *proposed* — **furthest from working** |
-| `common.default_profile` | `default_profile` (defaults to `"default"`, not `"personal"`) |
+Such a service brings its own namespace with it. It ships a small package that registers a
+module under the entry-point group `settings_api.namespaces`:
 
-`media.preferred_quality` needs the most work in the owning service: media-tool's
-`MediaQuery` has no quality concept at all, so adopting it means that type gains a field
-and the downloader learns to pass it on. Until then, setting it stores the value and
-changes nothing — which `docs/catalogue.md` says under the entry.
+```toml
+# the private service's own pyproject.toml
+[project.entry-points."settings_api.namespaces"]
+its-namespace = "its_package.settings_namespace"
+```
 
-Note the default disagreement this resolves: media-tool's `default_profile` is `"default"`
-while spotify-api's and web-search-api's are `"personal"`. `common.default_profile` is
-`"personal"`, so **media-tool's effective default changes** when it adopts this. That is
-the point of consolidating it, and it is a behaviour change worth calling out in the
-migration rather than discovering.
+The module supplies `NAMESPACE` and `SETTINGS` exactly as a built-in namespace module
+does, and `_assemble()` puts it through the identical check — so a malformed extension
+fails at import, in the process that has it, rather than at the first request for that
+namespace. Two modules claiming one namespace is refused, which is what stops an extension
+quietly replacing a public table.
+
+Everything else is unchanged: the deployment lists the namespace in
+`SETTINGS_API_ALLOWED_NAMESPACES` and grants it in `SETTINGS_API_SERVICES`, both of which
+are a deployment's own configuration rather than anything checked in here.
+
+An entry point rather than a configuration file because a namespace is code — defaults,
+bounds, validation and the prose a person reads to decide. A file would mean either
+shipping a schema language for settings definitions or handing this process arbitrary
+Python at request time.
 
 ### 3.5 spotify-api — namespace `spotify`
 
@@ -485,7 +498,7 @@ request in hand, so it has no user token to present to settings-api. Resolve the
 `environments` namespace in the request that creates the environment, store the resulting
 lifetimes and cap on the environment's record, and let the reaper read the record. A later
 change to the setting then applies to environments created afterwards, which is the same
-rule media-tool follows for job retention.
+rule every service in the family follows for job retention.
 
 **The grant uses the name environments-api already calls keyring with.** One user token
 travels to both hubs, so the audience prefix here must equal the service's name in
@@ -508,9 +521,9 @@ we do not support properly".
 
 ### 4.1 Covered
 
-46 settings across 8 namespaces, listed in [catalogue.md](catalogue.md). Of those, 28 are
-`existing` — a knob the owning service already has, deployment-wide — and 18 are `proposed`
-and say in the generated documentation exactly what change the owning service needs first.
+130 settings across 9 namespaces, listed in [catalogue.md](catalogue.md). Existing
+entries are knobs the owning service already has, deployment-wide; proposed entries say
+in the generated documentation exactly what change the owning service needs first.
 
 ### 4.2 Correctly left in the owning service
 
@@ -549,7 +562,7 @@ services' configuration:
 | `keyring.session_absolute_ttl_days` | keyring has **two** session lifetimes and only the idle one was listed. Without the ceiling, a session used daily lives for ever and "re-authenticate occasionally" is something the system never asks for. |
 | `persona.max_pinned_fields`, `persona.max_pinned_notes` | `user.max_pinned` was in the catalogue with the "pinned is a token budget" argument; persona-api has the identical knob twice, with the identical docstring, and neither was listed. |
 | `user.search_default_limit` | `persona.recall_default_limit` was listed and user-api's exact counterpart was not — an inconsistency nobody could have explained. |
-| `common.job_retention_hours` | Three services keep a finished-job record with three spellings of the same TTL, and only media-tool's was listed. |
+| `common.job_retention_hours` | Three services keep a finished-job record with three spellings of the same TTL, and only one of them was listed. |
 | `spotify.job_retention_hours` | Needed as a namespace override because spotify-api's own ceiling is 24 hours where the common setting allows a week. |
 
 That last pair is also what makes the `common`-underneath-namespace merge a rule the tests

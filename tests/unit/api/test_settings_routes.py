@@ -22,6 +22,7 @@ from tests.fakes.keyring import FakeKeyring
 
 OWNER = token()
 SEARCH_ONLY = token(namespace="search")
+PERSONAL = {"profile": "personal"}
 
 
 @pytest.fixture
@@ -113,9 +114,16 @@ class TestGetSetting:
             "set": False,
             "source": "default",
             "pinned": False,
+            "scope": "profile",
         }
         await set_setting(client, OWNER)
-        body = (await client.get("/v1/settings/spotify/default_market", headers=auth(OWNER))).json()
+        body = (
+            await client.get(
+                "/v1/settings/spotify/default_market",
+                headers=auth(OWNER),
+                params=PERSONAL,
+            )
+        ).json()
         assert (body["value"], body["set"], body["source"]) == ("GB", True, "account")
 
     async def test_an_unknown_key_is_404(self, client: AsyncClient) -> None:
@@ -128,7 +136,7 @@ class TestDescribeSettings:
     async def test_every_setting_is_described_with_bounds(self, client: AsyncClient) -> None:
         response = await client.get("/v1/settings/schema", headers=auth(OWNER))
         body = response.json()
-        assert body["count"] == 46 == len(body["settings"])
+        assert body["count"] == 134 == len(body["settings"])
         assert response.headers["ETag"] == '"account-a.0"'
         market = next(
             s
@@ -143,6 +151,7 @@ class TestDescribeSettings:
         assert market["on_unavailable"] == "use_default"
         assert market["origin"] == "existing"
         assert market["owner_writable_only"] is False
+        assert market["scope"] == "profile"
         enum = next(
             s for s in body["settings"] if s["key"] == "erasure_mode" and s["namespace"] == "user"
         )
@@ -158,9 +167,23 @@ class TestDescribeSettings:
 
 
 class TestSetSetting:
+    async def test_omitting_profile_on_a_profile_scoped_write_is_422(
+        self, client: AsyncClient
+    ) -> None:
+        response = await client.put(
+            "/v1/settings/spotify/default_market",
+            json={"value": "GB"},
+            headers=auth(OWNER),
+        )
+        assert response.status_code == 422
+        assert "profile-scoped" in response.json()["detail"]
+
     async def test_a_write_returns_the_revision_and_the_etag(self, client: AsyncClient) -> None:
         response = await client.put(
-            "/v1/settings/spotify/default_market", json={"value": "GB"}, headers=auth(OWNER)
+            "/v1/settings/spotify/default_market",
+            json={"value": "GB"},
+            headers=auth(OWNER),
+            params=PERSONAL,
         )
         assert response.status_code == 200
         assert response.json() == {
@@ -190,7 +213,10 @@ class TestSetSetting:
         self, client: AsyncClient, namespace: str, key: str, value: Any, phrase: str
     ) -> None:
         response = await client.put(
-            f"/v1/settings/{namespace}/{key}", json={"value": value}, headers=auth(OWNER)
+            f"/v1/settings/{namespace}/{key}",
+            json={"value": value},
+            headers=auth(OWNER),
+            params=PERSONAL,
         )
         assert response.status_code == 422
         assert phrase in response.json()["detail"]
@@ -208,6 +234,7 @@ class TestSetSetting:
             "/v1/settings/search/default_model",
             json={"value": "openai:ghp_" + "Ab3dEf7h" * 4},
             headers=auth(OWNER),
+            params=PERSONAL,
         )
         assert response.status_code == 422
         assert "keyring" in response.json()["detail"]
@@ -237,12 +264,14 @@ class TestSetSetting:
             "/v1/settings/spotify/default_market",
             json={"value": "PT"},
             headers={**auth(OWNER), "If-Match": '"account-a.0"'},
+            params=PERSONAL,
         )
         assert stale.status_code == 412
         fresh = await client.put(
             "/v1/settings/spotify/default_market",
             json={"value": "PT"},
             headers={**auth(OWNER), "If-Match": '"account-a.1"'},
+            params=PERSONAL,
         )
         assert fresh.status_code == 200
 
@@ -269,6 +298,7 @@ class TestUpdateSettings:
             "/v1/settings",
             json={"settings": {"spotify": {"default_market": "GB", "max_batch_size": 10}}},
             headers=auth(OWNER),
+            params=PERSONAL,
         )
         assert good.status_code == 200
         assert set(good.json()["changed"]) == {"spotify.default_market", "spotify.max_batch_size"}
@@ -277,9 +307,12 @@ class TestUpdateSettings:
             "/v1/settings",
             json={"settings": {"spotify": {"default_market": "PT", "max_batch_size": 9999}}},
             headers=auth(OWNER),
+            params=PERSONAL,
         )
         assert bad.status_code == 422
-        values = (await client.get("/v1/settings", headers=auth(OWNER))).json()["settings"]
+        values = (await client.get("/v1/settings", headers=auth(OWNER), params=PERSONAL)).json()[
+            "settings"
+        ]
         assert (
             values["spotify"]["default_market"] == "GB"
         )  # the good key of the bad document was not written
@@ -306,6 +339,7 @@ class TestUpdateSettings:
             "/v1/settings",
             json={"settings": {"spotify": {"default_market": "GB"}}},
             headers={**auth(OWNER), "If-Match": '"account-a.5"'},
+            params=PERSONAL,
         )
         assert response.status_code == 412
 
@@ -313,7 +347,9 @@ class TestUpdateSettings:
 class TestResets:
     async def test_reset_setting_leaves_the_event(self, client: AsyncClient) -> None:
         await set_setting(client, OWNER)
-        response = await client.delete("/v1/settings/spotify/default_market", headers=auth(OWNER))
+        response = await client.delete(
+            "/v1/settings/spotify/default_market", headers=auth(OWNER), params=PERSONAL
+        )
         assert response.status_code == 200
         assert response.json()["changed"] == ["spotify.default_market"]
         events = (await client.get("/v1/settings/events", headers=auth(OWNER))).json()["events"]
@@ -327,7 +363,7 @@ class TestResets:
     async def test_reset_namespace(self, client: AsyncClient) -> None:
         await set_setting(client, OWNER)
         await set_setting(client, OWNER, "spotify", "max_batch_size", 10)
-        response = await client.delete("/v1/settings/spotify", headers=auth(OWNER))
+        response = await client.delete("/v1/settings/spotify", headers=auth(OWNER), params=PERSONAL)
         assert response.status_code == 200
         assert set(response.json()["changed"]) == {
             "spotify.default_market",
@@ -338,9 +374,13 @@ class TestResets:
         await set_setting(client, OWNER)
         headers = {**auth(OWNER), "If-Match": '"account-a.0"'}
         assert (
-            await client.delete("/v1/settings/spotify/default_market", headers=headers)
+            await client.delete(
+                "/v1/settings/spotify/default_market", headers=headers, params=PERSONAL
+            )
         ).status_code == 412
-        assert (await client.delete("/v1/settings/spotify", headers=headers)).status_code == 412
+        assert (
+            await client.delete("/v1/settings/spotify", headers=headers, params=PERSONAL)
+        ).status_code == 412
 
 
 class TestForget:
@@ -360,14 +400,21 @@ class TestExportImport:
     async def test_round_trip(self, client: AsyncClient) -> None:
         await set_setting(client, OWNER)
         exported = (await client.get("/v1/settings/export", headers=auth(OWNER))).json()
-        assert exported["settings"] == {"spotify": {"default_market": "GB"}}
-        assert exported["version"] == 1
+        assert exported["settings"] == {}
+        assert exported["profiles"] == {"personal": {"spotify": {"default_market": "GB"}}}
+        assert exported["version"] == 2
         assert exported["revision"] == 1
 
-        await client.delete("/v1/settings/spotify/default_market", headers=auth(OWNER))
+        await client.delete(
+            "/v1/settings/spotify/default_market", headers=auth(OWNER), params=PERSONAL
+        )
         imported = await client.post(
             "/v1/settings/import",
-            json={"version": exported["version"], "settings": exported["settings"]},
+            json={
+                "version": exported["version"],
+                "settings": exported["settings"],
+                "profiles": exported["profiles"],
+            },
             headers=auth(OWNER),
         )
         assert imported.status_code == 200
@@ -380,7 +427,7 @@ class TestExportImport:
             "/v1/settings/import", json={"version": 99, "settings": {}}, headers=auth(OWNER)
         )
         assert response.status_code == 422
-        assert "export format 1" in response.json()["detail"]
+        assert "export formats 1, 2" in response.json()["detail"]
 
     async def test_an_unknown_key_is_400(self, client: AsyncClient) -> None:
         response = await client.post(

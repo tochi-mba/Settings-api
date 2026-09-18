@@ -10,7 +10,10 @@ they become MCP tool names, so they are never renamed.
 ## Person-facing: `/v1/settings`
 
 `Authorization: Bearer <keyring user token>`, minted for the `settings` audience family.
-The account comes from the token's `sub`; no route takes an account id.
+The account comes from the token's `sub`; no route takes an account id. `?profile=`
+selects which keyring profile's profile-scoped rows to read or write. Account-scoped
+settings ignore it. A write of a profile-scoped key without `?profile=` is a 422 that
+names the keys. A body field named `profile` is also a 422 (`extra="forbid"`).
 
 | Operation | Route | What it does |
 | --- | --- | --- |
@@ -69,7 +72,7 @@ would be restarted repeatedly for somebody else's problem.
 
 | Code | Means |
 | --- | --- |
-| 400 / 422 | The value is not one the catalogue allows. The body names the bound it broke. |
+| 400 / 422 | The value is not one the catalogue allows, or a profile-scoped write omitted `?profile=`. The body names the bound or the keys. |
 | 401 | The token was not accepted. One message for every cause. |
 | 403 | A namespace this service was not granted, or a setting only the person may change. |
 | 404 | No such namespace or key in the catalogue. |

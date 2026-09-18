@@ -19,7 +19,7 @@ service, environments-api's ``ENVAPI_DEFAULT_PROFILE`` included.
 
 from __future__ import annotations
 
-from settings_api.domain.types import OnUnavailable, Origin, SettingDef, SettingType
+from settings_api.domain.types import OnUnavailable, Origin, SettingDef, SettingScope, SettingType
 
 NAMESPACE = "environments"
 
@@ -27,6 +27,7 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
         namespace=NAMESPACE,
         key="idle_environment_hours",
+        scope=SettingScope.PROFILE,
         value_type=SettingType.INT,
         default=24,
         minimum=1,
@@ -53,6 +54,7 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
         namespace=NAMESPACE,
         key="idle_shell_minutes",
+        scope=SettingScope.PROFILE,
         value_type=SettingType.INT,
         default=60,
         minimum=1,
@@ -102,6 +104,7 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
         namespace=NAMESPACE,
         key="default_shell",
+        scope=SettingScope.PROFILE,
         value_type=SettingType.ENUM,
         default="bash",
         choices=("bash", "sh"),
@@ -122,6 +125,75 @@ SETTINGS: tuple[SettingDef, ...] = (
             "that breaks every session it applies to.\n\n"
             "`bash` is the fallback because it is today's behaviour and the more capable of "
             "the two, so an outage never turns a working script into a failing one."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="persist_history",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.BOOL,
+        default=False,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(False,),
+        origin=Origin.PROPOSED,
+        origin_note=(
+            "New here. environments-api keeps shell history inside the sandbox for the life "
+            "of the shell and does not write it across sessions."
+        ),
+        summary="Whether a shell's command history survives the shell that wrote it.",
+        description=(
+            "On, the next session in the same environment can arrow-up through what ran "
+            "before. Off, history dies with the process.\n\n"
+            "Off is conservative: command history is a second copy of whatever was typed, "
+            "including tokens pasted in a hurry, and an outage that started keeping it would "
+            "be a record nobody asked for."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="command_timeout_seconds",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.INT,
+        default=120,
+        minimum=5,
+        maximum=3600,
+        operator_clampable=True,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(120,),
+        origin=Origin.PROPOSED,
+        origin_note=(
+            "New here. environments-api times out a command with a deployment-wide number; "
+            "this is the per-person default the request may still override."
+        ),
+        summary="How long a command may run before the shell kills it, when nobody says.",
+        description=(
+            "Five seconds is for people who want a hung install to fail fast. An hour is for "
+            "a long build that prints nothing for a while. The request may still name a "
+            "shorter or longer limit inside this range.\n\n"
+            "Two minutes is today's behaviour in spirit and is therefore the fallback: an "
+            "outage that shortened it would kill a build; an outage that lengthened it would "
+            "leave a runaway process sitting on the box."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="max_output_bytes",
+        value_type=SettingType.INT,
+        default=1_048_576,
+        minimum=4_096,
+        maximum=16_777_216,
+        operator_clampable=True,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(1_048_576,),
+        origin=Origin.PROPOSED,
+        origin_note="New here. environments-api caps captured stdout per command.",
+        summary="How much of a command's output may be captured and handed back.",
+        description=(
+            "A ceiling on what Lucy will ever put in a tool result, not on what the process "
+            "may print. Bytes beyond this are truncated with a count, never silently dropped.\n\n"
+            "One mebibyte is the fallback because it is a typical capture cap and because "
+            "raising it during an outage would spend prompt on a log dump nobody asked to "
+            "keep. The operator may still clamp this down on a small box."
         ),
     ),
 )

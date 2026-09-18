@@ -47,6 +47,10 @@ owning service. `existing` means that service already has the knob, deployment-w
 and the note says what the change is. Nothing here ships a setting that silently does
 nothing without saying so.
 
+**Scope** is exclusive. `account` is one value for the person, the same under every
+keyring profile. `profile` is one value per keyring profile; pass `?profile=` to read or
+write it. The default is `account`. A setting in `common` cannot be profile-scoped.
+
 **Owner only** marks the settings a consuming service may not write even while holding the
 person's own token. There are two, and both are ones where the service that would benefit
 from changing them is the service that should not be allowed to.
@@ -112,6 +116,7 @@ def _entry_section(entry: SettingDef) -> str:
         "| | |",
         "| --- | --- |",
         f"| Type | `{entry.value_type.value}` |",
+        f"| Scope | `{entry.scope.value}` |",
         f"| Default | {_default(entry)} |",
         f"| Bounds | {_bounds(entry)} |",
         f"| On unavailable | {fallback} |",
@@ -172,8 +177,16 @@ def render() -> str:
 
 
 def _module_doc(namespace: str) -> str:
-    """The namespace module's own docstring, which says why the namespace looks like it does."""
-    module = __import__(f"settings_api.domain.catalogue.{namespace}", fromlist=["__doc__"])
+    """The namespace module's own docstring, which says why the namespace looks like it does.
+
+    A namespace discovered through the ``settings_api.namespaces`` entry point has no
+    module in this package, by design -- so its section gets its entries and no preamble
+    rather than this script failing on a namespace it was never meant to know about.
+    """
+    try:
+        module = __import__(f"settings_api.domain.catalogue.{namespace}", fromlist=["__doc__"])
+    except ModuleNotFoundError:
+        return ""
     doc = module.__doc__ or ""
     lines = doc.strip().splitlines()
     # The first line is a title in the module; the page already has one.

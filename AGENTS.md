@@ -87,9 +87,14 @@ deliberately and say why in the commit message -- do not work around it.
    independent", run by `make imports`.
 2. **Layers point inward.** The contract "Layers point inward", listing the six packages in
    order. `exhaustive = false`, so `core` is outside it by design.
-3. **The catalogue is data.** The contract "The catalogue is data" restricts every module
-   under `domain/catalogue/` to `domain/types` -- not the errors, not the value helpers,
-   and certainly not a store. A catalogue module that could import the store is a
+3. **The catalogue is data, and its namespaces are discovered rather than listed.** The
+   contract "The catalogue is data" restricts every module under `domain/catalogue/` to
+   `domain/types` -- not the errors, not the value helpers, and certainly not a store.
+   `_assemble()` combines the modules this repository ships with anything registered under
+   the entry point group `settings_api.namespaces`, so a service that is not public brings
+   its own namespace and this repository never names it -- see ADR-0011. A registered
+   module supplies `NAMESPACE` and `SETTINGS` exactly as a built-in does and goes through
+   the same `entry.check()`, so a malformed extension fails at import too. A catalogue module that could import the store is a
    catalogue entry that could have behaviour. This is why `SettingDef.validate` raises a
    plain `ValueError` and `domain/values.py` is what turns it into a domain error, and why
    the lookups that raise domain errors live in `domain/registry.py` rather than in the

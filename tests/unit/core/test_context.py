@@ -392,10 +392,10 @@ class TestTwoRequestsAtOnce:
         first_is_bound, second_is_bound = asyncio.Event(), asyncio.Event()
         first, second = await asyncio.gather(
             serve("req-1", "account-a", "spotify-api", first_is_bound, second_is_bound),
-            serve("req-2", "account-b", "media-tool", second_is_bound, first_is_bound),
+            serve("req-2", "account-b", "downstream-tool", second_is_bound, first_is_bound),
         )
 
         # Not just "no leak" but "no mix-up": a log record naming request req-1 alongside
         # account-b would be worse than one naming neither.
         assert first == ("req-1", "account-a", "spotify-api")
-        assert second == ("req-2", "account-b", "media-tool")
+        assert second == ("req-2", "account-b", "downstream-tool")

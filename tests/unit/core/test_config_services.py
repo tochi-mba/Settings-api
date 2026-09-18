@@ -36,14 +36,14 @@ def test_the_sample_tokens_are_long_enough_to_be_accepted() -> None:
 class TestServiceAudiencePrefix:
     """``audience_prefix`` on one service: the check the internal surface rests on."""
 
-    @pytest.mark.parametrize("prefix", ["spotify", "media-tool", "user", "a"])
+    @pytest.mark.parametrize("prefix", ["spotify", "downstream-tool", "user", "a"])
     def test_a_plain_prefix_is_accepted(self, prefix: str) -> None:
         assert ServiceConfig(**service(audience_prefix=prefix)).audience_prefix == prefix
 
     @pytest.mark.parametrize("prefix", ["", "spotify.jobs", ".", "a.b"])
     def test_an_empty_or_dotted_service_prefix_is_refused(self, prefix: str) -> None:
-        # `media-tool` must accept `media-tool` and `media-tool.jobs` and refuse
-        # `media-toolkit`. A prefix containing a dot makes that parse ambiguous, and the
+        # `downstream-tool` must accept `downstream-tool` and `downstream-tool.jobs` and refuse
+        # `downstream-toolkit`. A prefix containing a dot makes that parse ambiguous, and the
         # ambiguity is between two services' audience families.
         with pytest.raises(ValidationError) as refusal:
             ServiceConfig(**service(audience_prefix=prefix))
@@ -73,9 +73,9 @@ class TestServiceNamespaces:
     """What one service may see: the blast radius of one compromised service token."""
 
     def test_a_grant_becomes_a_tuple_whatever_json_delivered(self) -> None:
-        config = ServiceConfig(**service(namespaces=("spotify", "media")))
+        config = ServiceConfig(**service(namespaces=("spotify", "environments")))
 
-        assert config.namespaces == ("spotify", "media")
+        assert config.namespaces == ("spotify", "environments")
 
     def test_a_service_granted_nothing_is_refused_rather_than_left_reading_common(self) -> None:
         # `common` is added to every grant at request time, so an empty list is not
@@ -158,7 +158,7 @@ class TestServiceConfigShape:
         config = ServiceConfig(**service())
 
         with pytest.raises(ValidationError):
-            config.audience_prefix = "media-tool"
+            config.audience_prefix = "downstream-tool"
 
 
 class TestConfiguredServices:
@@ -182,8 +182,10 @@ class TestConfiguredServices:
             make_settings(
                 services={
                     "spotify-api": service(token=TOKEN_A, audience_prefix="spotify"),
-                    "media-tool": service(
-                        token=TOKEN_A, audience_prefix="media-tool", namespaces=("media",)
+                    "downstream-tool": service(
+                        token=TOKEN_A,
+                        audience_prefix="downstream-tool",
+                        namespaces=("environments",),
                     ),
                 }
             )
@@ -194,13 +196,13 @@ class TestConfiguredServices:
         settings = make_settings(
             services={
                 "spotify-api": service(token=TOKEN_A, audience_prefix="spotify"),
-                "media-tool": service(
-                    token=TOKEN_B, audience_prefix="media-tool", namespaces=("media",)
+                "downstream-tool": service(
+                    token=TOKEN_B, audience_prefix="downstream-tool", namespaces=("environments",)
                 ),
             }
         )
 
-        assert sorted(settings.services) == ["media-tool", "spotify-api"]
+        assert sorted(settings.services) == ["downstream-tool", "spotify-api"]
 
     def test_a_service_granted_a_namespace_the_deployment_does_not_allow_is_refused(self) -> None:
         with pytest.raises(ValidationError) as refusal:
@@ -216,13 +218,13 @@ class TestConfiguredServices:
     def test_the_refusal_names_every_namespace_the_service_cannot_reach(self) -> None:
         with pytest.raises(ValidationError) as refusal:
             make_settings(
-                services={"tool": service(namespaces=("spotify", "media", "common"))},
+                services={"tool": service(namespaces=("spotify", "environments", "common"))},
                 allowed_namespaces=("common",),
             )
 
         # Sorted and complete: one restart per missing namespace is how a five-minute fix
         # becomes an afternoon.
-        assert "is granted media, spotify" in str(refusal.value)
+        assert "is granted environments, spotify" in str(refusal.value)
 
     def test_a_service_granted_exactly_what_is_allowed_is_accepted(self) -> None:
         settings = make_settings(
@@ -239,14 +241,16 @@ class TestConfiguredServices:
             make_settings(
                 services={
                     "spotify-api": service(token=TOKEN_A, namespaces=("spotify",)),
-                    "media-tool": service(
-                        token=TOKEN_B, audience_prefix="media-tool", namespaces=("media",)
+                    "downstream-tool": service(
+                        token=TOKEN_B,
+                        audience_prefix="downstream-tool",
+                        namespaces=("environments",),
                     ),
                 },
                 allowed_namespaces=("common", "spotify"),
             )
 
-        assert "service 'media-tool' is granted media" in str(refusal.value)
+        assert "service 'downstream-tool' is granted environments" in str(refusal.value)
 
     def test_the_services_document_arrives_from_one_environment_variable(
         self, monkeypatch: pytest.MonkeyPatch
@@ -256,8 +260,10 @@ class TestConfiguredServices:
             json.dumps(
                 {
                     "spotify-api": service(),
-                    "media-tool": service(
-                        token=TOKEN_B, audience_prefix="media-tool", namespaces=("media",)
+                    "downstream-tool": service(
+                        token=TOKEN_B,
+                        audience_prefix="downstream-tool",
+                        namespaces=("environments",),
                     ),
                 }
             ),
@@ -267,7 +273,7 @@ class TestConfiguredServices:
 
         # One JSON document rather than a nested tree, because a configuration this
         # service cannot enumerate is one the typo check cannot check.
-        assert settings.services["media-tool"].audience_prefix == "media-tool"
+        assert settings.services["downstream-tool"].audience_prefix == "downstream-tool"
 
     def test_a_shared_token_is_refused_even_when_it_arrives_as_json(
         self, monkeypatch: pytest.MonkeyPatch
@@ -277,8 +283,10 @@ class TestConfiguredServices:
             json.dumps(
                 {
                     "spotify-api": service(token=TOKEN_A),
-                    "media-tool": service(
-                        token=TOKEN_A, audience_prefix="media-tool", namespaces=("media",)
+                    "downstream-tool": service(
+                        token=TOKEN_A,
+                        audience_prefix="downstream-tool",
+                        namespaces=("environments",),
                     ),
                 }
             ),

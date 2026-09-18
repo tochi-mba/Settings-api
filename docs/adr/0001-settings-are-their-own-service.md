@@ -42,7 +42,7 @@ places, with two different answers:
 | --- | --- | --- |
 | spotify-api | `keyring_default_profile` | `"personal"` |
 | web-search-api | `WSA_KEYRING_DEFAULT_PROFILE` | `"personal"` |
-| media-tool | `default_profile` | `"default"` |
+| a third service | `default_profile` | `"default"` |
 | keyring-api | nowhere | the profile is a required path segment |
 
 `domain/catalogue/common.py` puts it plainly: "the question 'which profile do you mean

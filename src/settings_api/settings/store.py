@@ -8,10 +8,10 @@ an adapter rather than a rewrite.
 Four properties belong here rather than in the adapter, because they are promises rather
 than implementation:
 
-**There is no profile anywhere in this interface.** Not as a parameter, not on a change,
-not in the returned state. One settings set per account, regardless of how many keyring
-profiles that account has -- see ADR-0002. A per-profile value is not discouraged here; it
-is unspellable.
+**Scope is exclusive, not overlaid.** Each catalogue entry is either account-scoped
+(stored under the ``*`` sentinel) or profile-scoped (stored under a keyring profile name).
+The same key is never resolved from both levels -- see ADR-0002 as amended. The store
+does not know which is which; it writes the ``profile`` the service hands it.
 
 **Storage is sparse.** A row exists only where somebody expressed a preference, so
 :attr:`AccountState.values` contains only what was chosen and never a default that was
@@ -33,12 +33,22 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
+from settings_api.domain.types import ACCOUNT_PROFILE
+
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from datetime import datetime
 
     from settings_api.domain.types import Value
     from settings_api.events.log import Action
+
+MAX_PROFILES_PER_ACCOUNT = 32
+"""How many distinct keyring profile names one account may have rows for.
+
+Account-scoped rows (``*``) do not count. Without a cap a caller could invent profile
+names and grow the table without bound; keyring's own profile ceiling is lower than this,
+so a legitimate household never hits it.
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,9 +66,17 @@ class StoredSetting:
     set_by: str
     """The verified audience, or ``service:<name>``. Derived, never claimed."""
 
+    profile: str = ACCOUNT_PROFILE
+    """``*`` for an account-scoped row, or the keyring profile name for a profile-scoped one."""
+
     @property
     def qualified(self) -> str:
         return f"{self.namespace}.{self.key}"
+
+    @property
+    def row_key(self) -> tuple[str, str]:
+        """How this row is keyed in :attr:`AccountState.rows`: ``(profile, namespace.key)``."""
+        return (self.profile, self.qualified)
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,18 +92,18 @@ class AccountState:
     """
 
     revision: int
-    rows: Mapping[str, StoredSetting]
-    """Every stored row, keyed by ``namespace.key``."""
+    rows: Mapping[tuple[str, str], StoredSetting]
+    """Every stored row, keyed by ``(profile, namespace.key)``."""
 
     @property
-    def values(self) -> Mapping[str, Value]:
-        """The stored values, in the shape :mod:`settings_api.domain.resolution` wants.
+    def values(self) -> Mapping[tuple[str, str], Value]:
+        """The stored values, keyed the same way as :attr:`rows`.
 
         Membership is what says a row exists -- a value of ``None`` is a real stored value
         for a nullable setting, so a mapping that omitted nulls would make "set to null"
         and "never set" indistinguishable.
         """
-        return {qualified: row.value for qualified, row in self.rows.items()}
+        return {key: row.value for key, row in self.rows.items()}
 
     def etag(self, account_id: str) -> str:
         """The entity tag for this state: ``"<account_id>.<revision>"``.
@@ -106,9 +124,16 @@ class Change:
     reset: bool = False
     """When true, the row is removed and ``value`` is ignored."""
 
+    profile: str = ACCOUNT_PROFILE
+    """Which profile column this change addresses. ``*`` for account-scoped settings."""
+
     @property
     def qualified(self) -> str:
         return f"{self.namespace}.{self.key}"
+
+    @property
+    def row_key(self) -> tuple[str, str]:
+        return (self.profile, self.qualified)
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,6 +204,8 @@ class SettingsStore(Protocol):
             RevisionMismatchError: ``if_revision`` was given and does not match. Checked
                 inside the transaction, so "read the revision, then write" cannot go stale
                 between the check and the write.
+            InvalidSettingValueError: applying the change would put this account over
+                :data:`MAX_PROFILES_PER_ACCOUNT` distinct profile names.
         """
         ...
 

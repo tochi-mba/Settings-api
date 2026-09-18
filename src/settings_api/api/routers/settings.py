@@ -8,9 +8,10 @@ would otherwise be matched by ``/v1/settings/{namespace}`` and answered with "no
 called schema". The three literal paths are declared first, and there is a test that reads
 each of them rather than a comment asking the next person to remember.
 
-**No route accepts an account id or a profile.** Which person's settings these are comes
-from the verified token; every request body sets ``extra="forbid"`` so a stray
-``"profile"`` is a 422 rather than a field that is silently ignored. See ADR-0002.
+**No route accepts an account id.** Which person's settings these are comes from the
+verified token. ``profile`` is a query parameter that selects which keyring profile's
+profile-scoped rows to read or write; it is never a body field, and ``extra="forbid"``
+makes a body ``profile`` a 422. See ADR-0002 as amended.
 """
 
 from __future__ import annotations
@@ -42,7 +43,7 @@ from settings_api.api.schemas.settings import (
 )
 from settings_api.domain.errors import InvalidSettingValueError
 from settings_api.domain.resolution import Resolved
-from settings_api.settings.service import EXPORT_VERSION, Document, Written
+from settings_api.settings.service import SUPPORTED_EXPORT_VERSIONS, Document, Written
 
 router = APIRouter(prefix="/v1/settings", tags=["settings"])
 
@@ -53,6 +54,18 @@ NamespacePath = Annotated[
     Path(description="Which compartment, e.g. `common`, `search`, `user`.", max_length=64),
 ]
 KeyPath = Annotated[str, Path(description="Which setting within that namespace.", max_length=64)]
+ProfileQuery = Annotated[
+    str | None,
+    Query(
+        description=(
+            "Which keyring profile to read or write profile-scoped settings for. "
+            "Account-scoped settings ignore this. Required when writing a "
+            "profile-scoped setting. A keyring profile name, never `*`."
+        ),
+        max_length=64,
+        pattern=r"^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
+    ),
+]
 
 ETAG_HEADER = "ETag"
 
@@ -87,16 +100,20 @@ NOT_RETROACTIVE = (
         "will accept.\n\n"
         "`origin: proposed` means the owning service needs a change before that setting "
         "does anything yet; `on_unavailable` says what that service does when this one is "
-        "unreachable."
+        "unreachable; `scope` says whether the value is one for the person or one per "
+        "keyring profile."
     ),
     response_model=SchemaResponse,
     responses={status.HTTP_401_UNAUTHORIZED: _PROBLEM},
 )
 async def describe_settings(
-    container: ContainerDep, identity: IdentityDep, response: Response
+    container: ContainerDep,
+    identity: IdentityDep,
+    response: Response,
+    profile: ProfileQuery = None,
 ) -> SchemaResponse:
     """Describe the catalogue as this deployment has it, with current values."""
-    document = await container.service.describe(identity)
+    document = await container.service.describe(identity, profile=profile)
     response.headers[ETAG_HEADER] = document.etag
     described = [
         _describe(item) for entries in document.namespaces.values() for item in entries.values()
@@ -125,6 +142,7 @@ async def export_settings(container: ContainerDep, identity: IdentityDep) -> Exp
         exported_at=exported.exported_at,
         revision=exported.revision,
         settings=exported.settings,
+        profiles=exported.profiles,
     )
 
 
@@ -189,10 +207,13 @@ async def read_settings_events(
     responses={status.HTTP_401_UNAUTHORIZED: _PROBLEM},
 )
 async def get_settings(
-    container: ContainerDep, identity: IdentityDep, response: Response
+    container: ContainerDep,
+    identity: IdentityDep,
+    response: Response,
+    profile: ProfileQuery = None,
 ) -> SettingsResponse:
     """Read everything this token grants."""
-    document = await container.service.get_all(identity)
+    document = await container.service.get_all(identity, profile=profile)
     return _settings_response(document, response)
 
 
@@ -217,9 +238,10 @@ async def get_namespace(
     container: ContainerDep,
     identity: IdentityDep,
     response: Response,
+    profile: ProfileQuery = None,
 ) -> SettingsResponse:
     """Read one namespace."""
-    document = await container.service.get_namespace(identity, namespace)
+    document = await container.service.get_namespace(identity, namespace, profile=profile)
     return _settings_response(document, response)
 
 
@@ -228,10 +250,11 @@ async def get_namespace(
     operation_id="get_setting",
     summary="Read one setting, and find out why it is what it is",
     description=(
-        "Returns the value plus three things that explain it: `set` says whether this "
+        "Returns the value plus four things that explain it: `set` says whether this "
         "person has actually chosen it, `source` says whether the value came from the "
-        "catalogue, from operator policy or from them, and `pinned` says whether policy "
-        "has fixed it so a write would be refused."
+        "catalogue, from operator policy or from them, `pinned` says whether policy "
+        "has fixed it so a write would be refused, and `scope` says whether the value "
+        "is one for the person or one per keyring profile."
     ),
     response_model=SettingResponse,
     responses={
@@ -245,9 +268,10 @@ async def get_setting(
     key: KeyPath,
     container: ContainerDep,
     identity: IdentityDep,
+    profile: ProfileQuery = None,
 ) -> SettingResponse:
     """Read one setting."""
-    resolved = await container.service.get_setting(identity, namespace, key)
+    resolved = await container.service.get_setting(identity, namespace, key, profile=profile)
     return SettingResponse(
         namespace=resolved.namespace,
         key=resolved.key,
@@ -255,6 +279,7 @@ async def get_setting(
         set=resolved.set_by_account,
         source=resolved.source,
         pinned=resolved.pinned,
+        scope=resolved.definition.scope,
     )
 
 
@@ -291,11 +316,15 @@ async def update_settings(
     container: ContainerDep,
     identity: IdentityDep,
     response: Response,
+    profile: ProfileQuery = None,
     if_match: IfMatchDep = None,
 ) -> WriteResponse:
     """Apply a document of settings as one transaction."""
     written = await container.service.update(
-        identity, body.settings, if_revision=revision_from_if_match(if_match, identity)
+        identity,
+        body.settings,
+        profile=profile,
+        if_revision=revision_from_if_match(if_match, identity),
     )
     return _write_response(written, response)
 
@@ -335,6 +364,7 @@ async def set_setting(
     container: ContainerDep,
     identity: IdentityDep,
     response: Response,
+    profile: ProfileQuery = None,
     if_match: IfMatchDep = None,
 ) -> WriteResponse:
     """Set one setting."""
@@ -343,6 +373,7 @@ async def set_setting(
         namespace,
         key,
         body.value,
+        profile=profile,
         if_revision=revision_from_if_match(if_match, identity),
     )
     return _write_response(written, response)
@@ -380,7 +411,11 @@ async def import_settings(
     """Apply an exported document to this account."""
     _check_export_version(body.version)
     written = await container.service.import_document(
-        identity, body.settings, if_revision=revision_from_if_match(if_match, identity)
+        identity,
+        body.settings,
+        profiles=body.profiles,
+        version=body.version,
+        if_revision=revision_from_if_match(if_match, identity),
     )
     return _write_response(written, response)
 
@@ -403,6 +438,7 @@ async def import_settings(
         status.HTTP_404_NOT_FOUND: _PROBLEM,
         status.HTTP_409_CONFLICT: _PROBLEM,
         status.HTTP_412_PRECONDITION_FAILED: _PROBLEM,
+        status.HTTP_422_UNPROCESSABLE_CONTENT: _PROBLEM,
     },
 )
 async def reset_setting(
@@ -411,11 +447,16 @@ async def reset_setting(
     container: ContainerDep,
     identity: IdentityDep,
     response: Response,
+    profile: ProfileQuery = None,
     if_match: IfMatchDep = None,
 ) -> WriteResponse:
     """Reset one setting to its resolved default."""
     written = await container.service.reset_setting(
-        identity, namespace, key, if_revision=revision_from_if_match(if_match, identity)
+        identity,
+        namespace,
+        key,
+        profile=profile,
+        if_revision=revision_from_if_match(if_match, identity),
     )
     return _write_response(written, response)
 
@@ -443,11 +484,15 @@ async def reset_namespace(
     container: ContainerDep,
     identity: IdentityDep,
     response: Response,
+    profile: ProfileQuery = None,
     if_match: IfMatchDep = None,
 ) -> WriteResponse:
     """Reset a whole namespace to its defaults."""
     written = await container.service.reset_namespace(
-        identity, namespace, if_revision=revision_from_if_match(if_match, identity)
+        identity,
+        namespace,
+        profile=profile,
+        if_revision=revision_from_if_match(if_match, identity),
     )
     return _write_response(written, response)
 
@@ -514,6 +559,7 @@ def _describe(item: Resolved) -> SettingDescription:
         owner_writable_only=definition.owner_writable_only,
         on_unavailable=definition.on_unavailable,
         origin=definition.origin,
+        scope=definition.scope,
         deprecated_by=definition.deprecated_by,
         bounds=Bounds(
             minimum=definition.minimum,
@@ -546,6 +592,7 @@ def _check_export_version(version: int) -> None:
             mean things this build would misread, and guessing is how an import silently
             sets the wrong values.
     """
-    if version != EXPORT_VERSION:
-        msg = f"this build reads export format {EXPORT_VERSION}; the document says {version}"
+    if version not in SUPPORTED_EXPORT_VERSIONS:
+        known = ", ".join(str(item) for item in sorted(SUPPORTED_EXPORT_VERSIONS))
+        msg = f"this build reads export formats {known}; the document says {version}"
         raise InvalidSettingValueError(msg)

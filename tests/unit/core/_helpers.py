@@ -14,7 +14,7 @@ import pytest
 from settings_api.core.config import ENV_PREFIX, Settings
 
 TOKEN_A = "spotify-service-token-0123456789abcdef"
-TOKEN_B = "media-service-token-0123456789abcdefghij"
+TOKEN_B = "downstream-service-token-0123456789abcdefghij"
 """Two tokens long enough to be accepted, and unlike each other. Their length is asserted
 in :func:`test_the_sample_tokens_are_long_enough_to_be_accepted` rather than assumed, so a
 change to the minimum shows up as that failure instead of as every service test failing."""

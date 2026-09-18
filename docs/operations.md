@@ -43,7 +43,7 @@ that works: the blast radius of one compromised service token is exactly that li
 One rule decides every `audience_prefix`: a service that also calls keyring's internal
 surface presents the *same* user token there, and keyring accepts it only when its
 audience is exactly that service's name in `KEYRING_SERVICE_TOKENS`. So those services use
-their own name — `media-tool`, `spotify-api`, `web-search-api`, `environments-api`. A
+their own name — `spotify-api`, `web-search-api`, `environments-api`. A
 prefix that differs fails closed, and looks like a working service whose every call is a
 401.
 

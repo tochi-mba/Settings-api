@@ -29,7 +29,7 @@ def config(token: str, prefix: str, *namespaces: str) -> ServiceConfig:
 
 SERVICES = {
     "alpha": config(FIRST, "alpha", "spotify"),
-    "beta": config("beta-service-token-0123456789abcdefg", "beta", "media", "search"),
+    "beta": config("beta-service-token-0123456789abcdefg", "beta", "environments", "search"),
     "omega": config(LAST, "omega", "user"),
 }
 
@@ -46,7 +46,7 @@ class TestIdentifying:
         grant = ServiceAuthenticator(services=SERVICES).identify(
             "beta-service-token-0123456789abcdefg"
         )
-        assert grant.namespaces == frozenset({"media", "search"})
+        assert grant.namespaces == frozenset({"environments", "search"})
         assert grant.audience_prefix == "beta"
 
     def test_an_unknown_token_is_refused_with_one_message(self) -> None:

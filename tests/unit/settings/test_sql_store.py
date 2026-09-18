@@ -26,7 +26,7 @@ B = "account-b"
 
 
 def market(value: object = "GB") -> Change:
-    return Change(namespace="spotify", key="default_market", value=value)  # type: ignore[arg-type]
+    return Change(namespace="spotify", key="default_market", value=value, profile="personal")  # type: ignore[arg-type]
 
 
 def zone(value: str = "Europe/Lisbon") -> Change:
@@ -83,13 +83,14 @@ class TestTheFirstWrite:
         await apply(
             store, market(), clock=clock, actor="service:spotify-api", service="spotify-api"
         )
-        row = (await store.read(A)).rows["spotify.default_market"]
+        row = (await store.read(A)).rows[("personal", "spotify.default_market")]
         assert row == StoredSetting(
             namespace="spotify",
             key="default_market",
             value="GB",
             set_at=EPOCH,
             set_by="service:spotify-api",
+            profile="personal",
         )
         assert row.qualified == "spotify.default_market"
         assert "GB" not in repr(row)
@@ -132,17 +133,19 @@ class TestResets:
         await apply(store, market())
         applied = await apply(
             store,
-            Change(namespace="spotify", key="default_market", reset=True),
+            Change(namespace="spotify", key="default_market", reset=True, profile="personal"),
             action=Action.RESET,
         )
         assert applied.revision == 2
         assert applied.changed == ("spotify.default_market",)
-        assert "spotify.default_market" not in (await store.read(A)).rows
+        assert ("personal", "spotify.default_market") not in (await store.read(A)).rows
 
     async def test_resetting_something_never_set_is_a_silent_no_op(
         self, store: SqlSettingsStore, events: SqlEventLog
     ) -> None:
-        applied = await apply(store, Change(namespace="spotify", key="default_market", reset=True))
+        applied = await apply(
+            store, Change(namespace="spotify", key="default_market", reset=True, profile="personal")
+        )
         assert applied.any_change is False
         assert await events.count_for_account(A) == 0
         # The account row was still created, which is harmless and simpler than a branch.
@@ -154,7 +157,7 @@ class TestResets:
         await apply(store, market())
         await apply(
             store,
-            Change(namespace="spotify", key="default_market", reset=True),
+            Change(namespace="spotify", key="default_market", reset=True, profile="personal"),
             action=Action.RESET,
         )
         page = await events.read(A, limit=10)
@@ -187,7 +190,16 @@ class TestDocuments:
     async def test_an_event_within_one_namespace_names_it_but_not_a_key(
         self, store: SqlSettingsStore, events: SqlEventLog
     ) -> None:
-        await apply(store, market(), Change(namespace="spotify", key="max_batch_size", value=10))
+        await apply(
+            store,
+            market(),
+            Change(
+                namespace="spotify",
+                key="max_batch_size",
+                value=10,
+                profile="personal",
+            ),
+        )
         (event,) = await events.read(A, limit=10)
         assert (event.namespace, event.key) == ("spotify", None)
 
@@ -221,7 +233,7 @@ class TestOptimisticConcurrency:
             await apply(store, zone(), if_revision=0)
         state = await store.read(A)
         assert state.revision == 1
-        assert "common.timezone" not in state.rows
+        assert ("*", "common.timezone") not in state.rows
 
     async def test_revision_zero_matches_an_account_that_has_never_written(
         self, store: SqlSettingsStore
@@ -244,8 +256,8 @@ class TestIsolation:
     async def test_accounts_do_not_see_each_other(self, store: SqlSettingsStore) -> None:
         await apply(store, market("GB"), account_id=A)
         await apply(store, market("PT"), account_id=B)
-        assert (await store.read(A)).rows["spotify.default_market"].value == "GB"
-        assert (await store.read(B)).rows["spotify.default_market"].value == "PT"
+        assert (await store.read(A)).rows[("personal", "spotify.default_market")].value == "GB"
+        assert (await store.read(B)).rows[("personal", "spotify.default_market")].value == "PT"
         assert (await store.read(A)).revision == 1
 
 
@@ -254,8 +266,8 @@ class TestNullIsStored:
         await apply(store, market(None))
         state = await store.read(A)
         # Membership, not None-ness, is what says a row exists.
-        assert "spotify.default_market" in state.values
-        assert state.values["spotify.default_market"] is None
+        assert ("personal", "spotify.default_market") in state.values
+        assert state.values[("personal", "spotify.default_market")] is None
 
 
 class TestForget:
@@ -297,7 +309,7 @@ class TestPurgeSetting:
         assert removed == 2
         for account in (A, B):
             state = await store.read(account)
-            assert "spotify.default_market" not in state.rows
+            assert ("personal", "spotify.default_market") not in state.rows
             # Recorded WITHOUT bumping: those rows were already ignored on every read, so
             # no resolved value changed and invalidating every cache would be a lie.
             assert state.revision == 1
@@ -306,7 +318,7 @@ class TestPurgeSetting:
             assert newest.revision == 1
             assert newest.actor == "sweeper"
             assert (newest.namespace, newest.key) == ("spotify", "default_market")
-        assert "common.timezone" in (await store.read(A)).rows
+        assert ("*", "common.timezone") in (await store.read(A)).rows
 
     async def test_nothing_to_purge_is_zero_and_no_events(
         self, store: SqlSettingsStore, events: SqlEventLog
@@ -326,4 +338,6 @@ class TestTheShape:
 
     def test_state_values_reads_through_to_rows(self) -> None:
         row = StoredSetting(namespace="a", key="b", value=1, set_at=EPOCH, set_by="x")
-        assert AccountState(exists=True, revision=3, rows={"a.b": row}).values == {"a.b": 1}
+        assert AccountState(exists=True, revision=3, rows={("*", "a.b"): row}).values == {
+            ("*", "a.b"): 1
+        }

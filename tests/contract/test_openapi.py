@@ -37,7 +37,19 @@ OPERATIONS = frozenset(
     }
 )
 
-FORBIDDEN_NAMES = {"account_id", "account", "user_id", "subject", "profile", "profile_id", "sub"}
+FORBIDDEN_NAMES = {"account_id", "account", "user_id", "subject", "profile_id", "sub"}
+QUERY_PROFILE_OPS = {
+    "describe_settings",
+    "get_settings",
+    "get_namespace",
+    "get_setting",
+    "update_settings",
+    "set_setting",
+    "reset_setting",
+    "reset_namespace",
+    "resolve_settings",
+    "set_setting_for_user",
+}
 
 
 @pytest.fixture(scope="module")
@@ -80,7 +92,7 @@ class TestEveryOperation:
             "set_setting": {"401", "403", "404", "409", "412", "422"},
             "update_settings": {"400", "401", "403", "404", "409", "412", "422"},
             "import_settings": {"400", "401", "403", "404", "409", "412", "422"},
-            "reset_setting": {"401", "403", "404", "409", "412"},
+            "reset_setting": {"401", "403", "404", "409", "412", "422"},
             "reset_namespace": {"401", "403", "404", "412"},
             "resolve_settings": {"304", "401", "403", "404", "503"},
             "set_setting_for_user": {"401", "403", "404", "409", "422", "503"},
@@ -90,16 +102,26 @@ class TestEveryOperation:
             wanted = expected_failures.get(operation["operationId"], set())
             assert wanted <= set(operation["responses"]), operation["operationId"]
 
-    def test_no_path_or_parameter_names_an_account_or_a_profile(
-        self, schema: dict[str, Any]
-    ) -> None:
-        # Invariants 6 and 7, against the generated contract. A cross-account read and a
-        # per-profile setting are not forbidden; they are inexpressible.
+    def test_no_path_or_parameter_names_an_account(self, schema: dict[str, Any]) -> None:
+        # The account still comes only from the verified token. Profile is a query
+        # parameter on the operations that select profile-scoped rows -- never a path
+        # segment and never a body field.
         for path, _, operation in operations(schema):
             segments = {segment.strip("{}") for segment in path.split("/")}
-            assert not (segments & FORBIDDEN_NAMES), path
+            assert not (segments & (FORBIDDEN_NAMES | {"profile"})), path
             for parameter in operation.get("parameters", []):
-                assert parameter["name"] not in FORBIDDEN_NAMES, (path, parameter["name"])
+                name = parameter["name"]
+                if name == "profile":
+                    assert parameter.get("in") == "query", (path, name)
+                    assert operation["operationId"] in QUERY_PROFILE_OPS
+                    continue
+                assert name not in FORBIDDEN_NAMES | {"profile"}, (path, name)
+        named = {
+            operation["operationId"]
+            for _, _, operation in operations(schema)
+            if any(item["name"] == "profile" for item in operation.get("parameters", []))
+        }
+        assert named == QUERY_PROFILE_OPS
 
     def test_the_two_internal_operations_are_tagged_for_services_only(
         self, schema: dict[str, Any]

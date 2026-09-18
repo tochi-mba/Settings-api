@@ -28,9 +28,9 @@ class TestBuild:
         container = Container.build(build_settings(tmp_path), clock=FakeClock())
         try:
             rows = await container.database.fetch_all("SELECT version FROM schema_version")
-            assert [row["version"] for row in rows] == [1]
+            assert [row["version"] for row in rows] == [1, 2]
             assert container.policy is NO_POLICY
-            assert container.services.configured == ("media-tool", "spotify-api", "user-api")
+            assert container.services.configured == ("downstream-tool", "spotify-api", "user-api")
         finally:
             await container.aclose()
 

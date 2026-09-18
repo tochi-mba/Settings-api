@@ -5,7 +5,7 @@
 ## Context
 
 Reads on `/v1/internal` are scoped to the calling service's granted namespaces. That part
-is uncontroversial: media-tool needs its own settings and has no business seeing
+is uncontroversial: a downstream service needs its own settings and has no business seeing
 `user.erasure_mode`.
 
 Writes are the subtler question. The safest answer is that a service may not write at all
@@ -23,8 +23,9 @@ A service **may** write, through `set_setting_for_user`, but only within its own
 namespaces and only while holding that person's own token. It is the person's decision
 travelling through a service, not the service's decision.
 
-Two properties are untouched by this. media-tool still cannot write `user.*`, because the
-namespace grant applies to writes exactly as it applies to reads. And media-tool cannot
+Two properties are untouched by this. A consuming service still cannot write `user.*`,
+because the namespace grant applies to writes exactly as it applies to reads. And it
+cannot
 write anything at all for somebody whose token it does not hold, because the account comes
 from the user token's `sub` and from nowhere else.
 

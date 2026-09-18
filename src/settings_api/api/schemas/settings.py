@@ -1,12 +1,15 @@
 """Wire models for the settings surface.
 
 Every request body sets ``extra="forbid"``, and on this service that is load-bearing
-rather than tidy. The one field a caller might plausibly try to send and must never be
-able to is ``profile``: one settings set per account is the property this whole service is
-built around (ADR-0002), and a body that carried ``{"profile": "work"}`` and had it
-silently ignored would be the single most dangerous kind of wrong -- the caller would
-believe it had written a per-profile setting, and every service would read the other one.
-Forbidden extras make it a 422 instead. There is a test named after exactly that.
+rather than tidy. The one field a caller might plausibly try to send **in the body** and
+must never be able to is ``profile``: which profile a write addresses is a query
+parameter, because a body that carried ``{"profile": "work"}`` and had it silently
+ignored would be the single most dangerous kind of wrong -- the caller would believe it
+had written a per-profile setting, and every service would read the other one. Forbidden
+extras make a body ``profile`` a 422 instead. There is a test named after exactly that.
+
+Account-scoped vs profile-scoped is a fact about the setting, reported on
+``describe_settings`` as ``scope``. See ADR-0002 as amended.
 """
 
 from __future__ import annotations
@@ -15,13 +18,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from settings_api.api.schemas.common import SettingValue
 from settings_api.domain.resolution import Source
-from settings_api.domain.types import OnUnavailable, Origin, SettingType
+from settings_api.domain.types import OnUnavailable, Origin, SettingScope, SettingType
 
 NamespaceValues = dict[str, SettingValue]
 """One namespace's settings, by key."""
 
 SettingsDocument = dict[str, NamespaceValues]
-"""Settings by namespace and key. Note what is absent: any place to put a profile."""
+"""Settings by namespace and key. Which profile they belong to is a query parameter,
+not a field of this document -- a body ``profile`` is a 422."""
 
 
 class SettingsResponse(BaseModel):
@@ -112,6 +116,13 @@ class SettingDescription(BaseModel):
             "change before this value does anything -- see docs/catalogue.md."
         )
     )
+    scope: SettingScope = Field(
+        description=(
+            "`account` is one value for the person, the same under every keyring "
+            "profile. `profile` is one value per keyring profile; pass `?profile=` to "
+            "read or write it."
+        )
+    )
     deprecated_by: str | None = Field(
         default=None, description="The setting that replaces this one, if any."
     )
@@ -137,6 +148,12 @@ class SettingResponse(BaseModel):
     set: bool = Field(description="Whether this account has expressed a preference.")
     source: Source = Field(description="Where the effective value came from.")
     pinned: bool = Field(description="Whether policy fixes it.")
+    scope: SettingScope = Field(
+        description=(
+            "`account` is one value for the person, the same under every keyring "
+            "profile. `profile` is one value per keyring profile."
+        )
+    )
 
 
 class SetSettingRequest(BaseModel):
@@ -190,10 +207,18 @@ class ImportSettingsRequest(BaseModel):
     version: int = Field(description="The export format version. Must be one this build knows.")
     settings: SettingsDocument = Field(
         description=(
-            "The settings to apply, by namespace and key. Validated exactly as a normal "
+            "Account-scoped settings, by namespace and key. Validated exactly as a normal "
             "write: an import cannot store a value a write could not. Unknown keys are "
-            "refused by name rather than dropped."
+            "refused by name rather than dropped. Version 1 documents may also hold what "
+            "are now profile-scoped keys; those land on `personal`."
         )
+    )
+    profiles: dict[str, SettingsDocument] = Field(
+        default_factory=dict,
+        description=(
+            "Profile-scoped settings, keyed by keyring profile name then namespace and "
+            "key. Empty on a version 1 document."
+        ),
     )
 
 
@@ -226,11 +251,14 @@ class ExportResponse(BaseModel):
     revision: int = Field(description="The revision this was taken at.")
     settings: SettingsDocument = Field(
         description=(
-            "Only what was actually chosen. Defaults are deliberately absent: an export "
+            "Account-scoped choices only. Defaults are deliberately absent: an export "
             "that filled them in would freeze this deployment's defaults into wherever it "
             "was imported, so restoring a backup after a default changed would silently "
             "pin the old value with no way to tell which ones were meant."
         )
+    )
+    profiles: dict[str, SettingsDocument] = Field(
+        description="Profile-scoped choices, keyed by keyring profile name."
     )
 
 

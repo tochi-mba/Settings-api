@@ -13,7 +13,7 @@ import json
 from httpx import AsyncClient
 
 from tests.conftest import (
-    MEDIA_TOKEN,
+    DOWNSTREAM_TOKEN,
     SPOTIFY_TOKEN,
     USER_API_TOKEN,
     auth,
@@ -24,7 +24,7 @@ from tests.conftest import (
 from tests.fakes.keyring import mint
 
 SPOTIFY_USER = mint(audience="spotify")
-MEDIA_USER = mint(audience="media-tool")
+DOWNSTREAM_USER = mint(audience="downstream-tool")
 USER_API_USER = mint(audience="user.health")
 
 
@@ -35,7 +35,9 @@ class TestResolve:
         await set_setting(client, token(), "common", "timezone", "Europe/Lisbon")
         await set_setting(client, token(), "spotify", "default_market", "PT")
         response = await client.get(
-            "/v1/internal/settings/spotify", headers=service_auth(SPOTIFY_TOKEN, SPOTIFY_USER)
+            "/v1/internal/settings/spotify",
+            headers=service_auth(SPOTIFY_TOKEN, SPOTIFY_USER),
+            params={"profile": "personal"},
         )
         assert response.status_code == 200
         body = response.json()
@@ -70,7 +72,7 @@ class TestResolve:
         self, client: AsyncClient
     ) -> None:
         response = await client.get(
-            "/v1/internal/settings/spotify", headers=service_auth(MEDIA_TOKEN, MEDIA_USER)
+            "/v1/internal/settings/spotify", headers=service_auth(DOWNSTREAM_TOKEN, DOWNSTREAM_USER)
         )
         assert response.status_code == 403
         assert "does not grant the spotify" in response.json()["detail"]
@@ -78,9 +80,9 @@ class TestResolve:
     async def test_a_service_cannot_present_a_token_from_another_family(
         self, client: AsyncClient
     ) -> None:
-        # The confused deputy: spotify-api's static token plus a media-tool user token.
+        # The confused deputy: spotify-api's static token plus a downstream-tool user token.
         response = await client.get(
-            "/v1/internal/settings/spotify", headers=service_auth(SPOTIFY_TOKEN, MEDIA_USER)
+            "/v1/internal/settings/spotify", headers=service_auth(SPOTIFY_TOKEN, DOWNSTREAM_USER)
         )
         assert response.status_code == 401
 
@@ -143,7 +145,9 @@ class TestRevalidation:
         etag = (await client.get("/v1/internal/settings/spotify", headers=headers)).headers["ETag"]
         await set_setting(client, token(), "spotify", "default_market", "GB")
         response = await client.get(
-            "/v1/internal/settings/spotify", headers={**headers, "If-None-Match": etag}
+            "/v1/internal/settings/spotify",
+            headers={**headers, "If-None-Match": etag},
+            params={"profile": "personal"},
         )
         assert response.status_code == 200
         assert response.json()["settings"]["default_market"] == "GB"
@@ -153,7 +157,7 @@ class TestRevalidation:
         # copy is still good.
         response = await client.get(
             "/v1/internal/settings/spotify",
-            headers={**service_auth(MEDIA_TOKEN, MEDIA_USER), "If-None-Match": "*"},
+            headers={**service_auth(DOWNSTREAM_TOKEN, DOWNSTREAM_USER), "If-None-Match": "*"},
         )
         assert response.status_code == 403
 
@@ -166,6 +170,7 @@ class TestSetForUser:
             "/v1/internal/settings/spotify/default_market",
             json={"value": "PT"},
             headers=service_auth(SPOTIFY_TOKEN, SPOTIFY_USER),
+            params={"profile": "personal"},
         )
         assert response.status_code == 200
         assert response.json() == {
@@ -179,7 +184,11 @@ class TestSetForUser:
         assert event["service"] == "spotify-api"
         # And the person sees it.
         mine = (
-            await client.get("/v1/settings/spotify/default_market", headers=auth(token()))
+            await client.get(
+                "/v1/settings/spotify/default_market",
+                headers=auth(token()),
+                params={"profile": "personal"},
+            )
         ).json()
         assert mine["value"] == "PT"
 
@@ -189,7 +198,7 @@ class TestSetForUser:
         response = await client.put(
             "/v1/internal/settings/user/grace_days",
             json={"value": 7},
-            headers=service_auth(MEDIA_TOKEN, MEDIA_USER),
+            headers=service_auth(DOWNSTREAM_TOKEN, DOWNSTREAM_USER),
         )
         assert response.status_code == 403
 
@@ -213,6 +222,7 @@ class TestSetForUser:
                 "/v1/internal/settings/spotify/default_market",
                 json={"value": "gb"},
                 headers=headers,
+                params={"profile": "personal"},
             )
         ).status_code == 422
         assert (

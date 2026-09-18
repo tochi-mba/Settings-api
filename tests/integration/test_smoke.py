@@ -2,9 +2,10 @@
 
 One flow: a person sets a value, reads it, a service reads it, the person resets it, then
 destroys everything -- with the ETag moving at each step. Then the property from ADR-0002,
-named in full in the test: two tokens for the same person obtained through different
-keyring profiles read and write the identical document, because there is no profile
-anywhere. And two different people are completely isolated on every read route.
+named in full in the test: two tokens for the same person share a profile-scoped
+document when they pass the same ``?profile=``, because identity still comes from the
+verified ``sub``. Account-scoped settings are the same under every profile. And two
+different people are completely isolated on every read route.
 """
 
 from __future__ import annotations
@@ -33,18 +34,36 @@ async def test_set_read_service_reads_reset_forget(client: AsyncClient) -> None:
     written = await set_setting(client, owner, "spotify", "default_market", "PT")
     assert written["revision"] == 1
 
-    mine = (await client.get("/v1/settings/spotify/default_market", headers=auth(owner))).json()
+    mine = (
+        await client.get(
+            "/v1/settings/spotify/default_market",
+            headers=auth(owner),
+            params={"profile": "personal"},
+        )
+    ).json()
     assert (mine["value"], mine["set"], mine["source"]) == ("PT", True, "account")
 
-    theirs = await client.get("/v1/internal/settings/spotify", headers=spotify)
+    theirs = await client.get(
+        "/v1/internal/settings/spotify",
+        headers=spotify,
+        params={"profile": "personal"},
+    )
     assert theirs.json()["settings"]["default_market"] == "PT"
     assert theirs.headers["ETag"] == f'"{ACCOUNT}.1"'
 
-    reset = await client.delete("/v1/settings/spotify/default_market", headers=auth(owner))
+    reset = await client.delete(
+        "/v1/settings/spotify/default_market",
+        headers=auth(owner),
+        params={"profile": "personal"},
+    )
     assert reset.headers["ETag"] == f'"{ACCOUNT}.2"'
-    assert (await client.get("/v1/internal/settings/spotify", headers=spotify)).json()["settings"][
-        "default_market"
-    ] is None
+    assert (
+        await client.get(
+            "/v1/internal/settings/spotify",
+            headers=spotify,
+            params={"profile": "personal"},
+        )
+    ).json()["settings"]["default_market"] is None
 
     forgotten = await client.delete("/v1/settings", headers=auth(owner))
     assert forgotten.status_code == 200
@@ -53,31 +72,36 @@ async def test_set_read_service_reads_reset_forget(client: AsyncClient) -> None:
     ] == f'"{ACCOUNT}.0"'
 
 
-async def test_two_tokens_for_the_same_sub_via_different_profiles_read_and_write_one_document(
+async def test_two_tokens_for_the_same_sub_share_a_profile_when_they_name_it(
     client: AsyncClient,
 ) -> None:
-    # ADR-0002. keyring mints a token per (account, profile); the profile is not a claim
-    # this service reads, so both tokens address one settings set. A second audience in
-    # the family stands in for "a different profile" -- it is the only thing about the
-    # token that could differ, and it changes nothing.
+    # Amended ADR-0002. keyring mints a token per (account, profile); this service still
+    # does not read a profile claim. Which profile-scoped rows a request addresses is
+    # the `?profile=` query. Two tokens for the same person that pass the same name
+    # share those rows; they always share account-scoped ones.
     personal = token(namespace=None)
     work = token(namespace="spotify")
+    named = {"profile": "personal"}
 
     await set_setting(client, personal, "spotify", "default_market", "PT")
 
-    seen_by_work = (await client.get("/v1/settings/spotify", headers=auth(work))).json()
+    seen_by_work = (
+        await client.get("/v1/settings/spotify", headers=auth(work), params=named)
+    ).json()
     assert seen_by_work["settings"]["spotify"]["default_market"] == "PT"
     assert seen_by_work["revision"] == 1
 
     await set_setting(client, work, "spotify", "max_batch_size", 10)
-    seen_by_personal = (await client.get("/v1/settings/spotify", headers=auth(personal))).json()
-    assert seen_by_personal["settings"]["spotify"] == {
-        "default_market": "PT",
-        "max_batch_size": 10,
-        "confirm_timeout_seconds": 15,
-        "job_retention_hours": 1,
-    }
+    seen_by_personal = (
+        await client.get("/v1/settings/spotify", headers=auth(personal), params=named)
+    ).json()
+    assert seen_by_personal["settings"]["spotify"]["default_market"] == "PT"
+    assert seen_by_personal["settings"]["spotify"]["max_batch_size"] == 10
     assert seen_by_personal["revision"] == 2
+
+    unseen = (await client.get("/v1/settings/spotify", headers=auth(personal))).json()
+    assert unseen["settings"]["spotify"]["default_market"] is None
+    assert unseen["revision"] == 2
 
 
 async def test_two_accounts_are_completely_isolated_on_every_read_route(
@@ -125,7 +149,9 @@ async def test_a_change_is_visible_to_a_service_on_its_next_revalidation(
     await set_setting(client, token(), "spotify", "default_market", "GB")
 
     revalidated = await client.get(
-        "/v1/internal/settings/spotify", headers={**spotify, "If-None-Match": etag}
+        "/v1/internal/settings/spotify",
+        headers={**spotify, "If-None-Match": etag},
+        params={"profile": "personal"},
     )
     assert revalidated.status_code == 200
     assert revalidated.json()["settings"]["default_market"] == "GB"

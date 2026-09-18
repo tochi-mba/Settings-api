@@ -1,6 +1,81 @@
-# ADR-0002: Settings are per account, not per profile
+# ADR-0002: Settings scopes are exclusive — account or profile, declared per entry
 
-**Status:** accepted.
+**Status:** accepted (amended 2026-09-17).
+
+The original decision is below. The amendment does not reverse it. Identity still comes
+only from the verified `sub`. A body field named `profile` is still a 422. Overlay of the
+same key at two levels is still refused. What changed is the claim that *every* setting is
+a fact about the person: some are, and some are facts about which credential set is in
+use, and the catalogue now says which.
+
+## Amendment
+
+Read the catalogue and ask, entry by entry, whose fact each one is. That test was always
+the right test. It does not yield a single answer.
+
+**Account-scoped** (the default): restrictions, spend ceilings, erasure, identity, and
+anything whose correct value does not change when a different Spotify login or a different
+shell is in use. `search.disabled_providers`, `user.erasure_mode`, `lucy.approval_policy`,
+`common.timezone`, `common.default_profile`. A work profile must not silently weaken a
+promise made on the account. `common` is forced account-scoped; `default_profile` is
+forced even if it moved, because storing it per profile is circular.
+
+**Profile-scoped** (opt in on the entry): taste, routing, and anything whose correct
+value depends on which credential set is in use. `spotify.default_market`,
+`spotify.default_device`, `lucy.model`, `lucy.permission_mode`, `search.safe_search`,
+`environments.default_shell`, prompt-feed toggles. Somebody with a work Spotify in one
+country and a personal Spotify in another can have both markets. Somebody who wants the
+work assistant on `auto` and the home one on `ask` can have both modes.
+
+The original three objections to "everything per profile" still hold, which is why this
+is not that:
+
+1. Multiplying every answer by the number of profiles is still wrong for restrictions.
+   Those stay account-scoped.
+2. Silent weakening is still the failure. A profile cannot overlay an account
+   restriction; exclusive scopes mean there is no second copy of `disabled_providers`
+   to forget to set.
+3. Identity still does not come from the caller naming an account. The profile is a
+   *query parameter* selecting which of this person's profile-scoped rows to read. The
+   account is still the verified `sub`. A body `{"profile": "work"}` is still a 422
+   (`extra="forbid"`), because a silently ignored body field is the same lie it always
+   was.
+
+Storage is `(account_id, profile, namespace, key)`. Account-scoped rows live under the
+sentinel `*`, which keyring's profile-name pattern refuses, so the two cannot collide.
+A write of an account-scoped key always stores under `*`; an extra `?profile=` is
+ignored, so Lucy can always pass the session's profile on a mixed document. A write of
+a profile-scoped key without `?profile=` is a 422 that names the keys. A leftover `*`
+row for a key that is now profile-scoped is ignored on read — exclusive, not overlay.
+
+Export format 2 splits `settings` (account) from `profiles.{name}` (per profile).
+Format 1 is still imported: profile-scoped keys land on `personal`.
+
+The four mechanisms, amended:
+
+| Where | What it makes impossible |
+| --- | --- |
+| The schema | The primary key includes `profile`. Account rows use `*`; named rows use a keyring profile name. Overlay of the same key at both levels is unrepresentable as a resolved value. |
+| The wire | No route accepts an account id. `profile` is a query parameter, never a path segment and never a body field. `extra="forbid"` still makes a body `profile` a 422. |
+| The identity | The account comes only from a verified `sub`. |
+| The suite | Two tokens for the same `sub` that pass the same `?profile=` share those rows. Account-scoped settings are the same under every profile. A profile-scoped write without a profile is 422. |
+
+The original cost — "somebody who wants a different Spotify market for work cannot have
+one" — is paid only for settings that are actually about the person. The catalogue
+declares the rest.
+
+---
+
+## Original decision
+
+One settings set per account, regardless of how many keyring profiles that account has.
+The primary key is `(account_id, namespace, key)`, and there is no profile column, no
+profile parameter, no profile path segment and no profile body field anywhere in the
+service.
+
+The rest of this record is the argument that made that the right *default*, and that
+still forbids overlay. The amendment above is what happens when the catalogue is read
+entry by entry instead of treated as one blob.
 
 ## Context
 
@@ -41,7 +116,7 @@ discouraged here; it is unspellable."
 
 Read the catalogue and ask, entry by entry, whose fact each one is. `user.erasure_mode` is
 what deleting an entry does to this person's data. `search.disabled_providers` is the list
-of model providers this person's queries must never be sent to. `media.artifact_retention_hours`
+of model providers this person's queries must never be sent to. `environments.idle_environment_hours`
 is how long their downloaded files sit on a shared box. `common.timezone` is where they
 live. These are answers about a person. None of them becomes a different answer because a
 different set of Spotify credentials happens to be in use at the time.
@@ -89,7 +164,7 @@ by a longer road.
 It is not an exotic corner, either. It is the most-duplicated setting in the family:
 
 > Replaces spotify-api's `keyring_default_profile` and web-search-api's
-> `WSA_KEYRING_DEFAULT_PROFILE` (both 'personal'), and media-tool's `default_profile`
+> `WSA_KEYRING_DEFAULT_PROFILE` (both 'personal'), and a third service's `default_profile`
 > ('default'). keyring itself has no such notion.
 
 Three services each carry their own copy of the question, with two different defaults, and

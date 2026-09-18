@@ -82,7 +82,8 @@ class NamespaceNotGrantedError(DomainError):
     """The caller asked for a namespace its token does not grant.
 
     Safe to be specific: this is a fact about the caller's own token, not about what
-    exists. media-tool asking for ``user`` is told exactly that, because the fix -- be
+    exists. A consuming service asking for ``user`` is told exactly that, because the
+    fix -- be
     granted it, or stop asking -- is not something it can discover by retrying.
     """
 
@@ -103,6 +104,16 @@ class SettingPinnedError(DomainError):
     A 409 with a body that says so, never a silent no-op. The schema response reports
     ``pinned: true`` for exactly these, so a caller can see it coming rather than
     discovering it by being refused.
+    """
+
+
+class SettingScopeError(DomainError, ValueError):
+    """A write named the wrong level for this setting.
+
+    Profile-scoped settings need ``?profile=``; omitting it would store the value
+    nowhere a later read with a profile would find it. Account-scoped settings live
+    under the ``*`` sentinel and a write never needs a profile to find them. The
+    message names the setting and the fix.
     """
 
 
@@ -134,10 +145,8 @@ class RevisionMismatchError(DomainError):
     """
 
 
-# There is deliberately no `LimitExceededError` here, and its absence is worth a line.
-# The only per-account cap in this service is the event log, and that trims rather than
-# refusing -- an append that pushed an account over the cap drops its oldest event in the
-# same statement. The number of stored settings needs no cap at all: the primary key is
-# (account_id, namespace, key) and every key comes from the catalogue, so an account
-# cannot hold more rows than the catalogue has entries. That is a structural bound rather
-# than a counted one, which is the stronger of the two.
+# The event log still trims rather than refusing. Stored settings are bounded by the
+# catalogue per profile, and by ``MAX_PROFILES_PER_ACCOUNT`` on how many distinct
+# profile names one account may have rows for -- without that cap a caller could invent
+# profile names and grow the table without bound. Account-scoped rows still cannot
+# outnumber the catalogue.

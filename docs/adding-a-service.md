@@ -41,8 +41,8 @@ being set.
 
 ## Step 1 — Choose the namespace
 
-One namespace per service, named after the service and not after its package: `media` for
-media-tool, `search` for web-search-api. Lowercase, `^[a-z][a-z0-9_]*$`.
+One namespace per service, named after the service and not after its package: `search`
+for web-search-api, `environments` for environments-api. Lowercase, `^[a-z][a-z0-9_]*$`.
 
 **Do not create a namespace for a setting that already belongs in `common`.** If the
 question you are answering is one that other services also ask — "what time zone are you
@@ -124,6 +124,13 @@ setting does anything, and `origin_note` says what that change is. The generated
 documentation repeats it under every entry, so nobody ships a setting that silently does
 nothing.
 
+**`scope` defaults to `ACCOUNT`.** Leave it unless the correct value depends on which
+keyring profile is in use rather than on who the person is. Taste and routing
+(`default_market`, `default_shell`, `model`) opt in to `SettingScope.PROFILE`. Restrictions,
+spend, erasure and identity stay account-wide so a work profile cannot silently weaken a
+promise. `common` cannot be profile-scoped; `default_profile` cannot either, because that
+would be circular.
+
 **`summary` and `description` must differ.** A description that only restates the summary
 is what somebody writes when they have not decided what the setting means, and there is a
 check that refuses it. The summary is one line for deciding whether to touch the setting;
@@ -150,11 +157,18 @@ In `src/settings_api/domain/catalogue/__init__.py`, add the import and put it in
 ```python
 from settings_api.domain.catalogue import calendar, common, keyring, ...
 
-_MODULES = (common, keyring, user, persona, media, spotify, search, environments, calendar)
+_MODULES = (common, keyring, user, persona, memory, lucy, spotify, search, environments, calendar)
 ```
 
 The catalogue is assembled and **checked at import**, so a malformed entry is a process
 that does not start rather than a 500 the first time somebody reads that namespace.
+
+**If the service is not public, there is no module here.** A public repository never names
+a private one, so a private service registers its own namespace module under the
+entry-point group `settings_api.namespaces` from its own package, and `_assemble()` picks
+it up and checks it identically. Nothing in this tree lists it, imports it, or knows it
+exists. See [ADR-0011](../../docs/adr/0011-private-services-are-extensions.md) and
+[integration.md](integration.md) section 3.4.
 
 ### Regenerate the documentation
 
@@ -198,8 +212,8 @@ SETTINGS_API_SERVICES='{
 Three things this configuration is doing, each of which is a security property:
 
 1. **The narrowest list bounds the blast radius.** If this service's token leaks, the
-   damage is exactly the namespaces in this list. `media-tool` cannot read
-   `user.erasure_mode` because `media` is all it was granted.
+   damage is exactly the namespaces in this list. web-search-api cannot read
+   `user.erasure_mode` because `search` is all it was granted.
 2. **`audience_prefix` is the confused-deputy defence.** A user token presented by this
    service must have `aud` equal to the prefix or beginning `prefix.` — so `calendar` and
    `calendar.work` are accepted and `spotify` is refused. Without it, this static token plus

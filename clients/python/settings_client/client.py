@@ -37,6 +37,7 @@ construction, on the critical path of every other service in the family.
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
@@ -68,12 +69,28 @@ class SettingsClient(Protocol):
     dependency in a composition root is the shape rather than the implementation.
     """
 
-    async def resolve(self, namespace: str, *, user_token: str) -> ResolvedSettings:
-        """This person's effective settings for one namespace, with ``common`` merged in."""
+    async def resolve(
+        self, namespace: str, *, user_token: str, profile: str | None = None
+    ) -> ResolvedSettings:
+        """This person's effective settings for one namespace, with ``common`` merged in.
+
+        ``profile`` selects profile-scoped values. Account-scoped values are always included.
+        """
         ...
 
-    async def set(self, namespace: str, key: str, value: Value, *, user_token: str) -> int:
-        """Write one setting on this person's behalf. Returns the new revision."""
+    async def set(
+        self,
+        namespace: str,
+        key: str,
+        value: Value,
+        *,
+        user_token: str,
+        profile: str | None = None,
+    ) -> int:
+        """Write one setting on this person's behalf. Returns the new revision.
+
+        ``profile`` is required for profile-scoped keys and ignored for account-scoped ones.
+        """
         ...
 
     async def aclose(self) -> None:
@@ -122,20 +139,26 @@ class HttpSettingsClient:
         self._ttl = ttl_seconds
         self._max_entries = max_cached_tokens
         self._http = httpx.AsyncClient(timeout=timeout_seconds, transport=transport)
-        self._entries: dict[tuple[str, str], _Entry] = {}
+        self._entries: dict[tuple[str, str, str], _Entry] = {}
         self._fallbacks: dict[str, Mapping[str, Fallback]] = {}
-        self._locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._locks: dict[tuple[str, str, str], asyncio.Lock] = {}
         self._clock = _monotonic
 
-    async def resolve(self, namespace: str, *, user_token: str) -> ResolvedSettings:
+    async def resolve(
+        self, namespace: str, *, user_token: str, profile: str | None = None
+    ) -> ResolvedSettings:
         """This person's effective settings for one namespace.
 
         Serves from cache while the entry is younger than ``ttl_seconds``; otherwise
         revalidates with ``If-None-Match``, which is a 304 in the steady state.
 
+        ``profile`` selects profile-scoped values. Account-scoped values always come
+        along. The cache is keyed by token, namespace and profile, so two profiles of
+        the same person do not share a resolved document.
+
         When settings-api cannot be reached:
 
-        * a cached entry for **this token** is served with ``stale=True``;
+        * a cached entry for **this token and profile** is served with ``stale=True``;
         * otherwise, if this client has seen the namespace's fallbacks before, a document
           is assembled from them -- ``use_default`` keys get their default, ``refuse``
           keys go into :attr:`~settings_client.models.ResolvedSettings.refused` and raise
@@ -148,7 +171,7 @@ class HttpSettingsClient:
             SettingsRejected: settings-api answered, and refused -- a namespace this
                 service was not granted, or a user token it may not present.
         """
-        key = (user_token, namespace)
+        key = (user_token, namespace, profile or "")
         cached = self._entries.get(key)
         if cached is not None and self._clock() - cached.validated_at < self._ttl:
             self._touch(key)
@@ -161,27 +184,42 @@ class HttpSettingsClient:
             cached = self._entries.get(key)
             if cached is not None and self._clock() - cached.validated_at < self._ttl:
                 return cached.settings
-            return await self._fetch(namespace, user_token=user_token, cached=cached)
+            return await self._fetch(
+                namespace, user_token=user_token, profile=profile, cached=cached
+            )
 
-    async def set(self, namespace: str, key: str, value: Value, *, user_token: str) -> int:
+    async def set(
+        self,
+        namespace: str,
+        key: str,
+        value: Value,
+        *,
+        user_token: str,
+        profile: str | None = None,
+    ) -> int:
         """Write one setting on this person's behalf. Returns the new revision.
 
-        Only ever the person's own decision travelling through this service. The cached
-        entry for this token is dropped rather than patched, because the response says
-        what the revision became and not what every other setting resolved to.
+        Only ever the person's own decision travelling through this service. Cached
+        entries for this token and namespace are dropped rather than patched, because
+        the response says what the revision became and not what every other setting
+        resolved to -- and because a revision bump invalidates every profile's copy.
 
         Raises:
             SettingsRejected: settings-api refused -- 403 for a namespace this service was
                 not granted or a setting only the person may change, 409 for a pinned
-                value, 422 for a value the catalogue does not allow.
+                value, 422 for a value the catalogue does not allow or a missing profile.
             SettingsUnavailable: settings-api could not be reached. A write is never
                 silently dropped and never queued: the caller is told, because the person
                 is standing there having just asked for it.
         """
         url = f"{self._base_url}/v1/internal/settings/{namespace}/{key}"
+        params = {"profile": profile} if profile else None
         try:
             response = await self._http.put(
-                url, json={"value": value}, headers=self._headers(user_token)
+                url,
+                json={"value": value},
+                headers=self._headers(user_token),
+                params=params,
             )
         except httpx.HTTPError as exc:
             message = f"settings-api could not be reached to write {namespace}.{key}"
@@ -190,7 +228,7 @@ class HttpSettingsClient:
         if response.status_code >= httpx.codes.BAD_REQUEST:
             raise SettingsRejected(response.status_code, _detail_of(response))
 
-        self._entries.pop((user_token, namespace), None)
+        self._drop_namespace(user_token, namespace)
         body: dict[str, Any] = response.json()
         return int(body["revision"])
 
@@ -207,8 +245,8 @@ class HttpSettingsClient:
             USER_TOKEN_HEADER: user_token,
         }
 
-    def _lock_for(self, key: tuple[str, str]) -> asyncio.Lock:
-        """The single-flight lock for one token and namespace."""
+    def _lock_for(self, key: tuple[str, str, str]) -> asyncio.Lock:
+        """The single-flight lock for one token, namespace and profile."""
         lock = self._locks.get(key)
         if lock is None:
             lock = asyncio.Lock()
@@ -216,16 +254,24 @@ class HttpSettingsClient:
         return lock
 
     async def _fetch(
-        self, namespace: str, *, user_token: str, cached: _Entry | None
+        self,
+        namespace: str,
+        *,
+        user_token: str,
+        profile: str | None,
+        cached: _Entry | None,
     ) -> ResolvedSettings:
         """Fetch or revalidate, and fall back correctly when neither is possible."""
         headers = self._headers(user_token)
         if cached is not None:
             headers["If-None-Match"] = cached.etag
+        params = {"profile": profile} if profile else None
 
         try:
             response = await self._http.get(
-                f"{self._base_url}/v1/internal/settings/{namespace}", headers=headers
+                f"{self._base_url}/v1/internal/settings/{namespace}",
+                headers=headers,
+                params=params,
             )
         except httpx.HTTPError:
             return self._degrade(namespace, cached=cached)
@@ -247,9 +293,15 @@ class HttpSettingsClient:
             # would hide a misconfigured grant behind defaults that happened to work.
             raise SettingsRejected(response.status_code, _detail_of(response))
 
-        return self._store(namespace, user_token, response)
+        return self._store(namespace, user_token, profile, response)
 
-    def _store(self, namespace: str, user_token: str, response: httpx.Response) -> ResolvedSettings:
+    def _store(
+        self,
+        namespace: str,
+        user_token: str,
+        profile: str | None,
+        response: httpx.Response,
+    ) -> ResolvedSettings:
         """Parse a successful response, cache it, and remember the fallbacks."""
         body: dict[str, Any] = response.json()
         fallbacks = {
@@ -271,7 +323,7 @@ class HttpSettingsClient:
             revision=body["revision"],
         )
         self._remember(
-            (user_token, namespace),
+            (user_token, namespace, profile or ""),
             _Entry(
                 settings=settings,
                 etag=response.headers.get("ETag", ""),
@@ -319,7 +371,14 @@ class HttpSettingsClient:
             ),
         )
 
-    def _remember(self, key: tuple[str, str], entry: _Entry) -> None:
+    def _drop_namespace(self, user_token: str, namespace: str) -> None:
+        """Drop every cached profile of this namespace. A revision bump invalidates all of them."""
+        stale = [key for key in self._entries if key[0] == user_token and key[1] == namespace]
+        for key in stale:
+            del self._entries[key]
+            self._locks.pop(key, None)
+
+    def _remember(self, key: tuple[str, str, str], entry: _Entry) -> None:
         """Cache an entry, evicting the least recently used if we are at the bound.
 
         Popped before it is re-inserted, so a refresh of an entry that already existed
@@ -332,7 +391,7 @@ class HttpSettingsClient:
             del self._entries[oldest]
             self._locks.pop(oldest, None)
 
-    def _touch(self, key: tuple[str, str]) -> None:
+    def _touch(self, key: tuple[str, str, str]) -> None:
         """Move an existing entry to the most-recently-used end.
 
         A plain dict, relying on insertion order, rather than ``OrderedDict``: dicts have
@@ -351,7 +410,7 @@ def _monotonic() -> float:
     their own clocks; it takes the reading itself because a settings client that required
     a clock to be constructed would be one nobody wires up in four lines.
     """
-    return asyncio.get_event_loop().time()
+    return time.monotonic()
 
 
 def _detail_of(response: httpx.Response) -> str:

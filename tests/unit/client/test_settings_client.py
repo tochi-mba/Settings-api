@@ -181,6 +181,26 @@ class TestTheCacheIsKeyedByTheToken:
         assert recorder.count == 2
         await client.aclose()
 
+    async def test_a_named_profile_is_a_query_parameter_not_a_path(self) -> None:
+        recorder = Recorder()
+        client = build(recorder)
+        await client.resolve("spotify", user_token=TOKEN_A, profile="work")
+
+        sent = recorder.requests[0]
+        assert sent.url.path == "/v1/internal/settings/spotify"
+        assert sent.url.params["profile"] == "work"
+        await client.aclose()
+
+    async def test_two_profiles_do_not_share_a_cached_document(self) -> None:
+        recorder = Recorder()
+        client = build(recorder)
+        await client.resolve("spotify", user_token=TOKEN_A, profile="personal")
+        await client.resolve("spotify", user_token=TOKEN_A, profile="work")
+        # Exclusive scopes: work's market is not personal's, so the cache key includes
+        # the profile. Sharing the entry would be overlay by another name.
+        assert recorder.count == 2
+        await client.aclose()
+
 
 class TestRevalidation:
     async def test_an_expired_entry_revalidates_with_if_none_match(self) -> None:
@@ -408,16 +428,20 @@ class TestWrites:
         )
         client = build(recorder)
 
-        revision = await client.set("spotify", "default_market", "GB", user_token=TOKEN_A)
+        revision = await client.set(
+            "spotify", "default_market", "GB", user_token=TOKEN_A, profile="personal"
+        )
 
         assert revision == 9
         assert recorder.requests[0].headers["X-Settings-User-Token"] == TOKEN_A
+        assert recorder.requests[0].url.params["profile"] == "personal"
         await client.aclose()
 
     async def test_a_write_drops_the_cached_entry_for_that_token(self) -> None:
         recorder = Recorder()
         client = build(recorder)
         await client.resolve("spotify", user_token=TOKEN_A)
+        await client.resolve("spotify", user_token=TOKEN_A, profile="work")
 
         recorder.handler = lambda _request: httpx.Response(
             200, json={"revision": 5, "changed": ["spotify.default_market"], "unchanged": False}
@@ -425,10 +449,13 @@ class TestWrites:
         await client.set("spotify", "default_market", "GB", user_token=TOKEN_A)
         recorder.handler = None
         await client.resolve("spotify", user_token=TOKEN_A)
+        await client.resolve("spotify", user_token=TOKEN_A, profile="work")
 
         # Dropped rather than patched: the write response says what the revision became,
-        # not what every other setting in the namespace resolved to.
-        assert recorder.count == 3
+        # not what every other setting in the namespace resolved to. A revision bump
+        # invalidates every profile of that namespace, because account-scoped keys in
+        # the merged document may have changed.
+        assert recorder.count == 5
         await client.aclose()
 
     async def test_a_refused_write_says_what_was_wrong(self) -> None:

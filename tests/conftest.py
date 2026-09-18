@@ -47,7 +47,7 @@ ACCOUNT = "account-a"
 OTHER_ACCOUNT = "account-b"
 
 SPOTIFY_TOKEN = "spotify-service-token-0123456789abcdef"
-MEDIA_TOKEN = "media-service-token-0123456789abcdefghij"
+DOWNSTREAM_TOKEN = "downstream-service-token-0123456789abcdefghij"
 USER_API_TOKEN = "user-api-service-token-0123456789abcdef"
 
 SERVICES: dict[str, dict[str, Any]] = {
@@ -56,10 +56,10 @@ SERVICES: dict[str, dict[str, Any]] = {
         "audience_prefix": "spotify",
         "namespaces": ["spotify"],
     },
-    "media-tool": {
-        "token": MEDIA_TOKEN,
-        "audience_prefix": "media-tool",
-        "namespaces": ["media"],
+    "downstream-tool": {
+        "token": DOWNSTREAM_TOKEN,
+        "audience_prefix": "downstream-tool",
+        "namespaces": ["environments"],
     },
     "user-api": {
         "token": USER_API_TOKEN,
@@ -69,7 +69,7 @@ SERVICES: dict[str, dict[str, Any]] = {
 }
 """Three services, chosen so the interesting refusals are expressible.
 
-``media-tool``'s audience prefix is deliberately not a prefix of another service's name,
+``downstream-tool``'s audience prefix is deliberately not a prefix of another service's name,
 and ``spotify-api``'s is deliberately shorter than its own service name -- the two are
 independent strings, and a test that used the same value for both would pass whether or
 not the code kept them apart.
@@ -220,14 +220,21 @@ async def set_setting(
     namespace: str = "spotify",
     key: str = "default_market",
     value: Any = "GB",
+    *,
+    profile: str | None = "personal",
 ) -> dict[str, Any]:
     """Store one setting and return the response body.
 
     Raises on anything but success, so a test that meant to set up state cannot silently
-    continue with none.
+    continue with none. Defaults to ``profile=personal`` because the helper's default key
+    is profile-scoped; pass ``profile=None`` only when testing the 422 for omitting it.
     """
+    params = {"profile": profile} if profile is not None else None
     response = await client.put(
-        f"/v1/settings/{namespace}/{key}", json={"value": value}, headers=auth(tok)
+        f"/v1/settings/{namespace}/{key}",
+        json={"value": value},
+        headers=auth(tok),
+        params=params,
     )
     assert response.status_code == 200, response.text
     stored: dict[str, Any] = response.json()

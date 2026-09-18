@@ -45,9 +45,11 @@ if TYPE_CHECKING:
 
     from tests.fakes.clock import FakeClock
 
-ALLOWED = ("common", "media", "search", "spotify", "user")
-MEDIA = ServiceGrant(
-    service="media-tool", audience_prefix="media-tool", namespaces=frozenset({"media"})
+ALLOWED = ("common", "environments", "search", "spotify", "user")
+DOWNSTREAM = ServiceGrant(
+    service="downstream-tool",
+    audience_prefix="downstream-tool",
+    namespaces=frozenset({"environments"}),
 )
 
 
@@ -134,7 +136,7 @@ class TestThePersonFacingGrant:
         assert identity.grants("user") is False
 
     @pytest.mark.parametrize(
-        "audience", ["media-tool", "user", "settings.nope", "settings.", "settingsx"]
+        "audience", ["downstream-tool", "user", "settings.nope", "settings.", "settingsx"]
     )
     async def test_an_audience_outside_the_family_or_naming_an_unknown_namespace_is_refused(
         self, verifier: TokenVerifier, audience: str
@@ -150,14 +152,14 @@ class TestThePersonFacingGrant:
 
 
 class TestTheServiceFacingGrant:
-    @pytest.mark.parametrize("audience", ["media-tool", "media-tool.jobs"])
+    @pytest.mark.parametrize("audience", ["downstream-tool", "downstream-tool.jobs"])
     async def test_a_token_from_the_services_own_family_is_accepted(
         self, verifier: TokenVerifier, audience: str
     ) -> None:
-        identity = await verifier.verify_for_service(mint(audience=audience), grant=MEDIA)
+        identity = await verifier.verify_for_service(mint(audience=audience), grant=DOWNSTREAM)
 
-        assert identity.service == "media-tool"
-        assert identity.actor == f"{SERVICE_ACTOR_PREFIX}media-tool"
+        assert identity.service == "downstream-tool"
+        assert identity.actor == f"{SERVICE_ACTOR_PREFIX}downstream-tool"
 
     async def test_namespaces_come_from_the_grant_not_the_token(
         self, verifier: TokenVerifier
@@ -165,25 +167,31 @@ class TestTheServiceFacingGrant:
         # A service's compartment is a deployment decision; letting the token widen it would
         # mean a service that could mint its own scopes.
         identity = await verifier.verify_for_service(
-            mint(audience="media-tool.everything"), grant=MEDIA
+            mint(audience="downstream-tool.everything"), grant=DOWNSTREAM
         )
 
-        assert identity.namespaces == frozenset({"media", COMMON})
+        assert identity.namespaces == frozenset({"environments", COMMON})
 
-    @pytest.mark.parametrize("audience", ["settings", "spotify", "user", "media-toolkit", "media"])
+    @pytest.mark.parametrize(
+        "audience", ["settings", "spotify", "user", "downstream-toolkit", "environments"]
+    )
     async def test_a_token_from_another_family_is_refused(
         self, verifier: TokenVerifier, audience: str
     ) -> None:
         # THE confused-deputy test. A static service token plus any user token must not read
-        # any account; media-tool may present only tokens minted for media-tool.
+        # any account; downstream-tool may present only tokens minted for downstream-tool.
         with pytest.raises(AuthenticationError, match=BAD_TOKEN):
-            await verifier.verify_for_service(mint(audience=audience), grant=MEDIA)
+            await verifier.verify_for_service(mint(audience=audience), grant=DOWNSTREAM)
 
     async def test_every_token_rule_still_applies(self, verifier: TokenVerifier) -> None:
         with pytest.raises(AuthenticationError, match=BAD_TOKEN):
-            await verifier.verify_for_service(forge_hs256(audience="media-tool"), grant=MEDIA)
+            await verifier.verify_for_service(
+                forge_hs256(audience="downstream-tool"), grant=DOWNSTREAM
+            )
         with pytest.raises(AuthenticationError, match=BAD_TOKEN):
-            await verifier.verify_for_service(mint(audience="media-tool", omit="exp"), grant=MEDIA)
+            await verifier.verify_for_service(
+                mint(audience="downstream-tool", omit="exp"), grant=DOWNSTREAM
+            )
 
     async def test_keyring_being_unreachable_is_still_a_503_here(
         self, keyring: FakeKeyring, verifier: TokenVerifier
@@ -191,7 +199,7 @@ class TestTheServiceFacingGrant:
         keyring.error = httpx.ConnectError("down")
 
         with pytest.raises(KeyringUnreachableError):
-            await verifier.verify_for_service(mint(audience="media-tool"), grant=MEDIA)
+            await verifier.verify_for_service(mint(audience="downstream-tool"), grant=DOWNSTREAM)
 
 
 class TestEveryRefusalIsIdentical:
@@ -204,7 +212,7 @@ class TestEveryRefusalIsIdentical:
             mint(key=ROTATED_KEY),
             mint(omit="aud"),
             mint(issuer="x"),
-            mint(audience="media-tool"),
+            mint(audience="downstream-tool"),
             mint(audience="settings.nope"),
             mint(kid="nobody"),
             "garbage",
@@ -215,7 +223,7 @@ class TestEveryRefusalIsIdentical:
                 await verifier.verify_owner(token)
             messages.add(str(refusal.value))
         with pytest.raises(AuthenticationError) as refusal:
-            await verifier.verify_for_service(mint(audience="settings"), grant=MEDIA)
+            await verifier.verify_for_service(mint(audience="settings"), grant=DOWNSTREAM)
         messages.add(str(refusal.value))
 
         # Which rule did the refusing goes to the logs, where the operator reads it and a

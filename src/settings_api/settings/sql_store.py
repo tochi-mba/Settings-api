@@ -19,9 +19,9 @@ person's history rather than two.
 anything that raises rolls the whole transaction back, so a document write that refuses
 its last key has not written its first.
 
-**There is no profile column** (ADR-0002). The primary key is
-``(account_id, namespace, key)``, so a per-profile value is unrepresentable rather than
-discouraged. Nothing below takes a profile, because there is nowhere to put one.
+**The profile column is a sentinel or a name** (amended ADR-0002). Account-scoped rows
+use ``*``; profile-scoped rows use a keyring profile name. The store does not know which
+catalogue entry is which -- it writes the profile the change carries.
 """
 
 from __future__ import annotations
@@ -29,9 +29,16 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from settings_api.domain.errors import RevisionMismatchError
+from settings_api.domain.errors import InvalidSettingValueError, RevisionMismatchError
+from settings_api.domain.types import ACCOUNT_PROFILE
 from settings_api.events.log import Action
-from settings_api.settings.store import AccountState, Applied, Change, StoredSetting
+from settings_api.settings.store import (
+    MAX_PROFILES_PER_ACCOUNT,
+    AccountState,
+    Applied,
+    Change,
+    StoredSetting,
+)
 from settings_api.storage.times import from_column, to_column
 
 if TYPE_CHECKING:
@@ -43,12 +50,13 @@ if TYPE_CHECKING:
     from settings_api.events.log import EventLog
     from settings_api.storage.database import Database
 
-SETTING_COLUMNS = "namespace, key, value_json, set_at, set_by"
+SETTING_COLUMNS = "profile, namespace, key, value_json, set_at, set_by"
 
 UPSERT = (
-    "INSERT INTO settings (account_id, namespace, key, value_json, set_at, set_by) "
-    "VALUES (?, ?, ?, ?, ?, ?) "
-    "ON CONFLICT (account_id, namespace, key) DO UPDATE SET "
+    "INSERT INTO settings "
+    "(account_id, profile, namespace, key, value_json, set_at, set_by) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?) "
+    "ON CONFLICT (account_id, profile, namespace, key) DO UPDATE SET "
     "value_json = excluded.value_json, set_at = excluded.set_at, set_by = excluded.set_by"
 )
 """One statement for "set it, whether or not it is already there".
@@ -101,6 +109,8 @@ class SqlSettingsStore:
                     f"the request expected {if_revision}"
                 )
                 raise RevisionMismatchError(msg)
+
+            _enforce_profile_cap(changes=changes, state=state)
 
             changed = _apply_changes(
                 connection, account_id, changes=changes, state=state, now=now, actor=actor
@@ -210,8 +220,9 @@ def _read_state(connection: sqlite3.Connection, account_id: str) -> AccountState
             value=_decode(row["value_json"]),
             set_at=from_column(row["set_at"]),
             set_by=row["set_by"],
+            profile=row["profile"],
         )
-        stored[setting.qualified] = setting
+        stored[setting.row_key] = setting
 
     return AccountState(
         exists=account is not None,
@@ -236,6 +247,25 @@ def _ensure_account(connection: sqlite3.Connection, account_id: str, *, now: dat
     )
 
 
+def _enforce_profile_cap(*, changes: Sequence[Change], state: AccountState) -> None:
+    """Refuse a write that would invent more profile names than the account may hold."""
+    incoming = {
+        change.profile
+        for change in changes
+        if change.profile != ACCOUNT_PROFILE and not change.reset
+    }
+    if not incoming:
+        return
+    existing = {profile for profile, _qualified in state.rows if profile != ACCOUNT_PROFILE}
+    if len(existing | incoming) <= MAX_PROFILES_PER_ACCOUNT:
+        return
+    msg = (
+        f"an account may store settings for at most {MAX_PROFILES_PER_ACCOUNT} "
+        "profiles; forget a profile's settings before adding another"
+    )
+    raise InvalidSettingValueError(msg)
+
+
 # Six parameters, all independent: where to write, what to write, what is already
 # there, when, and on whose authority. An options object would be constructed on one line
 # and unpacked on the next.
@@ -253,7 +283,7 @@ def _apply_changes(  # noqa: PLR0913
     changed: list[str] = []
 
     for change in changes:
-        existing = state.rows.get(change.qualified)
+        existing = state.rows.get(change.row_key)
         if change.reset:
             if existing is None:
                 # Resetting something that was never set is a no-op, not an error. A
@@ -261,8 +291,9 @@ def _apply_changes(  # noqa: PLR0913
                 # happened to have rows.
                 continue
             connection.execute(
-                "DELETE FROM settings WHERE account_id = ? AND namespace = ? AND key = ?",
-                (account_id, change.namespace, change.key),
+                "DELETE FROM settings WHERE account_id = ? AND profile = ? "
+                "AND namespace = ? AND key = ?",
+                (account_id, change.profile, change.namespace, change.key),
             )
             changed.append(change.qualified)
             continue
@@ -277,6 +308,7 @@ def _apply_changes(  # noqa: PLR0913
             UPSERT,
             (
                 account_id,
+                change.profile,
                 change.namespace,
                 change.key,
                 json.dumps(change.value, ensure_ascii=False, allow_nan=False, sort_keys=True),

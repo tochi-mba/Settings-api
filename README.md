@@ -39,7 +39,7 @@ There are forty-one more like it. Today:
 - and there is nowhere a person can look to answer *"what has this system been told about
   how to treat me"*, and nowhere to change it once.
 
-This is that place. **46 settings across 8 namespaces** -- see
+This is that place. **130 settings across 9 namespaces** -- see
 [docs/catalogue.md](docs/catalogue.md).
 
 ## The shape of it
@@ -50,7 +50,7 @@ This is that place. **46 settings across 8 namespaces** -- see
                                   v
   keyring  --JWKS-->  [ settings-api ]  <--service token + user's token--  user-api
  (auth root)               |     ^                                         persona-api
-                           |     |                                          media-tool
+                           |     |                                          environments-api
                        SQLite    +---------------------------------------   spotify-api
                     one account,                                           web-search-api
                    one settings set                                          keyring-api

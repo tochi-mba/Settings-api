@@ -18,7 +18,7 @@ has answered the question once does not have to answer a differently-shaped vers
 
 from __future__ import annotations
 
-from settings_api.domain.types import OnUnavailable, Origin, SettingDef, SettingType
+from settings_api.domain.types import OnUnavailable, Origin, SettingDef, SettingScope, SettingType
 
 NAMESPACE = "persona"
 
@@ -26,6 +26,7 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
         namespace=NAMESPACE,
         key="default_persona",
+        scope=SettingScope.PROFILE,
         value_type=SettingType.STR,
         default=None,
         nullable=True,
@@ -52,6 +53,7 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
         namespace=NAMESPACE,
         key="recall_default_limit",
+        scope=SettingScope.PROFILE,
         value_type=SettingType.INT,
         default=20,
         minimum=1,

@@ -93,8 +93,11 @@ class FakeSettingsClient:
         """Declare one key's default and outage rule, as the server would."""
         self._fallbacks.setdefault(namespace, {})[key] = fallback
 
-    async def resolve(self, namespace: str, *, user_token: str) -> ResolvedSettings:
+    async def resolve(
+        self, namespace: str, *, user_token: str, profile: str | None = None
+    ) -> ResolvedSettings:
         """This person's settings for one namespace, or the configured failure."""
+        del profile
         self.resolves += 1
         if namespace in self.rejects:
             status, detail = self.rejects[namespace]
@@ -131,8 +134,17 @@ class FakeSettingsClient:
             revision=self.revision,
         )
 
-    async def set(self, namespace: str, key: str, value: Value, *, user_token: str) -> int:
+    async def set(
+        self,
+        namespace: str,
+        key: str,
+        value: Value,
+        *,
+        user_token: str,
+        profile: str | None = None,
+    ) -> int:
         """Record a write and return the new revision."""
+        del user_token, profile
         if self.unavailable:
             message = f"settings-api could not be reached to write {namespace}.{key}"
             raise SettingsUnavailable(message)

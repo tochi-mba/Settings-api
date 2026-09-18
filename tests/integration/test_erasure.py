@@ -75,8 +75,11 @@ async def test_a_full_checkpoint_would_not_have_been_enough(tmp_path: Path) -> N
             "VALUES ('a', 1, 't', 't')"
         )
         await database.execute(
-            "INSERT INTO settings (account_id, namespace, key, value_json, set_at, set_by) "
-            "VALUES ('a', 'common', 'timezone', ?, 't', 'settings')",
+            (
+                "INSERT INTO settings "
+                "(account_id, profile, namespace, key, value_json, set_at, set_by) "
+                "VALUES ('a', '*', 'common', 'timezone', ?, 't', 'settings')"
+            ),
             (f'"{SENTINEL}"',),
         )
         await database.execute("DELETE FROM settings WHERE account_id = 'a'")
