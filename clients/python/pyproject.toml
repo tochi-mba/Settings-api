@@ -1,6 +1,6 @@
 [project]
 name = "settings-client"
-version = "0.1.0"
+version = "0.2.0"
 description = "The client every service in this family uses to read one person's settings."
 readme = "README.md"
 requires-python = ">=3.12"

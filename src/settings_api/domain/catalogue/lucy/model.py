@@ -56,8 +56,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         pattern=r"^[a-z0-9][a-z0-9-]*:[A-Za-z0-9][A-Za-z0-9._-]*$",
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(None,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. The hub fails the turn when the chosen model is unavailable.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub tries this model once when the chosen one is unavailable, and names "
+            "which voice answered."
+        ),
         summary="Which model to try when the chosen one is unavailable, as provider:model.",
         description=(
             "Null means there is no second choice: if `model` cannot be reached the turn "
@@ -101,8 +104,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(0,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. The hub asks for an effort level and sets no token ceiling.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub sends this as Anthropic budget_tokens when it is above zero; zero "
+            "leaves the effort level to choose."
+        ),
         summary="A hard ceiling on the working-out for one turn. Zero means the effort level decides.",
         description=(
             "`thinking` says how hard to work in the provider's own vocabulary; this puts a "
@@ -166,11 +172,10 @@ SETTINGS: tuple[SettingDef, ...] = (
         value_type=SettingType.BOOL,
         default=True,
         on_unavailable=OnUnavailable.REFUSE,
-        origin=Origin.PROPOSED,
+        origin=Origin.EXISTING,
         origin_note=(
-            "The hub reads this into the turn policy. Image turns are not yet refused when "
-            "it cannot be confirmed; only disabled_capabilities and approval_policy block "
-            "the whole turn."
+            "The hub tells the model images were not sent when this is off. An outage "
+            "still refuses only disabled_capabilities and approval_policy."
         ),
         summary="Whether images in a message may be sent to the model at all.",
         description=(

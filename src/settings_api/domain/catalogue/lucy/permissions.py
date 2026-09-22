@@ -71,8 +71,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         default=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(True,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. The hub gates on tool permissions and not on where an effect lands.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub asks before an outward write even in auto, unless a grant already "
+            "allows it. Plan mode still refuses writes."
+        ),
         summary="Whether anything other people will see is confirmed before it happens.",
         description=(
             "Sending a message, posting something, adding to a shared playlist, writing to a "
@@ -95,8 +98,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         max_item_chars=48,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=([],),
-        origin=Origin.PROPOSED,
-        origin_note="New here.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub names these in the model prompt when they are disconnected; the HTTP "
+            "catalogue still lists every pack."
+        ),
         summary="Capabilities to offer even when they are not connected yet.",
         description=(
             "Empty means Lucy offers whatever is connected and stays quiet about the rest. "

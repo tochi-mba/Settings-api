@@ -28,8 +28,8 @@ SETTINGS: tuple[SettingDef, ...] = (
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(2,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. The hub retries a failed sibling call with a fixed policy.",
+        origin=Origin.EXISTING,
+        origin_note="The hub retries 5xx/429 sibling calls this many times after the first try.",
         summary="How many times a failed call to another service is tried again.",
         description=(
             "Only for failures where trying again is meaningful -- a timeout, a rate limit, "
@@ -51,8 +51,8 @@ SETTINGS: tuple[SettingDef, ...] = (
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(30,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. The hub's retry backoff has no per-account ceiling.",
+        origin=Origin.EXISTING,
+        origin_note="The hub stops retrying a sibling call once this window has elapsed.",
         summary="How long retrying one call may go on before it gives up.",
         description=(
             "The backoff between attempts grows, so a generous `retry_attempts` can add up "

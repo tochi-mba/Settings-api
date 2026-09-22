@@ -12,8 +12,9 @@ Almost every entry used to be ``PROPOSED``. The hub now reads the turn limits, t
 model knobs, helper depth and concurrency, memory-write policy, prompt-feed toggles,
 new-session defaults (including incognito), whether reasoning is streamed, whether
 message bodies may appear in the process log, the context window and reclamation knobs,
-and the refuse keys on every turn. Entries that still say ``PROPOSED`` are ones the hub
-stores in policy or catalogue but has not yet made the live behaviour of a conversation.
+idle-session archival, workspace retention on the live block, and the refuse keys on
+every turn. Entries that still say ``PROPOSED`` are ones the hub stores in policy or
+catalogue but has not yet made the live behaviour of a conversation.
 ``docs/catalogue.md`` repeats the origin per entry so that nobody ships a setting
 believing it does something it does not.
 

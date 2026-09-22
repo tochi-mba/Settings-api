@@ -817,7 +817,7 @@ A package satisfies the assembler exactly as a module does -- it offers ``NAMESP
 ``SETTINGS``, which is the whole of the ``NamespaceModule`` protocol -- so nothing in
 ``_MODULES`` next door knows this happened.
 
-> **Needs a change in the owning service first:** `fallback_model`, `max_thinking_tokens`, `vision_enabled`, `agent_wall_clock_seconds`, `agent_message_max_chars`, `agent_message_burst`, `confirm_outward_actions`, `enabled_capabilities`, `auto_title`, `session_idle_archive_days`, `workspace_retention_hours`, `notify_on_long_turn`, `long_turn_seconds`, `retry_attempts`, `retry_max_seconds`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `session_idle_archive_days`, `workspace_retention_hours`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `lucy.model`
 
@@ -846,7 +846,7 @@ Changing this changes how a conversation reads and what it costs. It is safe to 
 | Default | `null` |
 | Bounds | ≤128 chars, `^[a-z0-9][a-z0-9-]*:[A-Za-z0-9][A-Za-z0-9._-]*$`, nullable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. The hub fails the turn when the chosen model is unavailable. |
+| Origin | existing — The hub tries this model once when the chosen one is unavailable, and names which voice answered. |
 | Safe to fall back to | `null` |
 
 Null means there is no second choice: if `model` cannot be reached the turn fails and says so. Naming one here means an outage at one provider becomes a reply in a different voice rather than no reply.
@@ -884,7 +884,7 @@ Null is conservative because it is the choice that does nothing: falling back to
 | Default | `0` |
 | Bounds | 0-200000, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. The hub asks for an effort level and sets no token ceiling. |
+| Origin | existing — The hub sends this as Anthropic budget_tokens when it is above zero; zero leaves the effort level to choose. |
 | Safe to fall back to | `0` |
 
 `thinking` says how hard to work in the provider's own vocabulary; this puts a number on it. Zero leaves the effort level to choose, which is the ordinary case and the one to leave alone.
@@ -938,7 +938,7 @@ Low makes repeated questions get near-identical answers and makes the writing fl
 | Default | `true` |
 | Bounds | — |
 | On unavailable | **refuse** |
-| Origin | **proposed** — The hub reads this into the turn policy. Image turns are not yet refused when it cannot be confirmed; only disabled_capabilities and approval_policy block the whole turn. |
+| Origin | existing — The hub tells the model images were not sent when this is off. An outage still refuses only disabled_capabilities and approval_policy. |
 
 On, a screenshot or a photo you attach goes to the provider along with the text. Off, it is never sent: Lucy is told an image was attached and that it may not look at it, which is a better failure than quietly answering about text it could only half understand.
 
@@ -1359,7 +1359,7 @@ Raise it when helpers keep being asked to summarise something genuinely large an
 | Default | `600` |
 | Bounds | 10-7200, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. The hub's helper caps are compiled in, not read per account. |
+| Origin | existing — The hub stops a helper that exceeds this wall clock and asks for what it has. |
 | Safe to fall back to | `600` |
 
 A clock per helper rather than for the whole fan-out, because the failure it catches is one helper stuck on something slow while the others finished ten minutes ago.
@@ -1377,7 +1377,7 @@ A stopped helper is asked to hand back what it has rather than being discarded, 
 | Default | `4000` |
 | Bounds | 100-32000, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. The hub caps message size; the cap is not per account. |
+| Origin | existing — The hub applies this as the per-message cap on helper mail. |
 | Safe to fall back to | `4000` |
 
 Messages between helpers are for steering -- 'stop, the file moved', 'this is taking longer than you think' -- and not for moving work around. Anything large belongs in the workspace, where it can be referenced instead of copied into everybody's context.
@@ -1395,7 +1395,7 @@ The cap is refused at the sender, so an oversized message is a failure the sendi
 | Default | `5` |
 | Bounds | 1-50, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. The hub's per-recipient burst limit is compiled in. |
+| Origin | existing — The hub applies this as the per-recipient burst cap on helper mail. |
 | Safe to fall back to | `5` |
 
 Two models politely acknowledging each other is the default failure of a message channel rather than a hypothetical one, and this is what stops it paying for itself. The limit is per recipient and refused at the sender, so a helper finds out it is talking too much instead of discovering later that nobody was listening.
@@ -1448,7 +1448,7 @@ It refuses rather than falling back, and that is deliberate. Every other setting
 | Default | `true` |
 | Bounds | — |
 | On unavailable | use default |
-| Origin | **proposed** — New here. The hub gates on tool permissions and not on where an effect lands. |
+| Origin | existing — The hub asks before an outward write even in auto, unless a grant already allows it. Plan mode still refuses writes. |
 | Safe to fall back to | `true` |
 
 Sending a message, posting something, adding to a shared playlist, writing to a repository somebody else reads. These are the actions whose cost is not technical: an unwanted file is deleted and forgotten, and an unwanted message has been read by the time you notice.
@@ -1466,7 +1466,7 @@ On asks first, whatever `permission_mode` says -- it is a question about where t
 | Default | `[]` |
 | Bounds | ≤32 items, items ≤48 chars |
 | On unavailable | use default |
-| Origin | **proposed** — New here. |
+| Origin | existing — The hub names these in the model prompt when they are disconnected; the HTTP catalogue still lists every pack. |
 | Safe to fall back to | `[]` |
 
 Empty means Lucy offers whatever is connected and stays quiet about the rest. Naming one here makes Lucy mention it and offer to set it up.
@@ -1581,7 +1581,7 @@ This needs an answer because a web page, a command line and another agent can al
 | Default | `true` |
 | Bounds | — |
 | On unavailable | use default |
-| Origin | **proposed** — New here. The hub titles a session from its first exchange, unconditionally. |
+| Origin | existing — The hub titles an untitled parent session from the first user message once the turn completes. |
 | Safe to fall back to | `true`, `false` |
 
 On, the first exchange is turned into a short title so a list of sessions reads as a list of subjects rather than of timestamps. Off, a session keeps the time it started until you name it yourself.
@@ -1649,7 +1649,7 @@ Off by default because reasoning is working-out rather than an answer, and readi
 | Default | `true` |
 | Bounds | — |
 | On unavailable | use default |
-| Origin | **proposed** — New here. The hub streams progress and announces nothing when a turn is slow. |
+| Origin | existing — The hub emits lucy.turn.slow after this many seconds of a running turn. |
 | Safe to fall back to | `true` |
 
 On, a turn that passes `long_turn_seconds` says what it is doing and roughly how far along it is, so a long wait is a long wait rather than a silence you have to decide about. Off, it simply arrives when it arrives.
@@ -1667,7 +1667,7 @@ On is conservative: a notice somebody did not want is an annoyance, and abandoni
 | Default | `60` |
 | Bounds | 5-3600 |
 | On unavailable | use default |
-| Origin | **proposed** — New here; depends on the same hub change as `notify_on_long_turn`. |
+| Origin | existing — The hub waits this many seconds before emitting lucy.turn.slow. |
 | Safe to fall back to | `60` |
 
 Only meaningful with `notify_on_long_turn` on. Sixty seconds is roughly where a person stops assuming the answer is nearly there and starts wondering whether anything is happening.
@@ -1685,7 +1685,7 @@ Lower it if you would rather hear early and often; raise it if the work you do i
 | Default | `2` |
 | Bounds | 0-10, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. The hub retries a failed sibling call with a fixed policy. |
+| Origin | existing — The hub retries 5xx/429 sibling calls this many times after the first try. |
 | Safe to fall back to | `2` |
 
 Only for failures where trying again is meaningful -- a timeout, a rate limit, a connection that dropped. A refusal is never retried, because asking a second time for something you were told you may not have is how a permission prompt becomes a permission loop.
@@ -1703,7 +1703,7 @@ Zero surfaces every hiccup to you. Higher hides them at the cost of a turn that 
 | Default | `30` |
 | Bounds | 1-600, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. The hub's retry backoff has no per-account ceiling. |
+| Origin | existing — The hub stops retrying a sibling call once this window has elapsed. |
 | Safe to fall back to | `30` |
 
 The backoff between attempts grows, so a generous `retry_attempts` can add up to minutes of silence. This is the clock over the count: whichever is reached first ends the retrying and the failure is reported.

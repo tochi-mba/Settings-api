@@ -89,8 +89,8 @@ SETTINGS: tuple[SettingDef, ...] = (
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(600,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. The hub's helper caps are compiled in, not read per account.",
+        origin=Origin.EXISTING,
+        origin_note="The hub stops a helper that exceeds this wall clock and asks for what it has.",
         summary="How long one helper may run before it is stopped and asked for what it has.",
         description=(
             "A clock per helper rather than for the whole fan-out, because the failure it "
@@ -112,8 +112,8 @@ SETTINGS: tuple[SettingDef, ...] = (
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(4_000,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. The hub caps message size; the cap is not per account.",
+        origin=Origin.EXISTING,
+        origin_note="The hub applies this as the per-message cap on helper mail.",
         summary="The largest message one helper may send another.",
         description=(
             "Messages between helpers are for steering -- 'stop, the file moved', 'this is "
@@ -136,8 +136,8 @@ SETTINGS: tuple[SettingDef, ...] = (
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(5,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. The hub's per-recipient burst limit is compiled in.",
+        origin=Origin.EXISTING,
+        origin_note="The hub applies this as the per-recipient burst cap on helper mail.",
         summary="How many messages one helper may send another before it has to wait.",
         description=(
             "Two models politely acknowledging each other is the default failure of a "

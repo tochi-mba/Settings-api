@@ -55,8 +55,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         agent_writable=AgentAccess.WITH_APPROVAL,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(True, False),
-        origin=Origin.PROPOSED,
-        origin_note="New here. The hub titles a session from its first exchange, unconditionally.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub titles an untitled parent session from the first user message once "
+            "the turn completes."
+        ),
         summary="Whether a conversation gets a title written from what it is about.",
         description=(
             "On, the first exchange is turned into a short title so a list of sessions reads "
@@ -80,8 +83,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(0, 30),
-        origin=Origin.PROPOSED,
-        origin_note="New here. The hub keeps every session in the active list for ever.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub archives quiet conversations as they are listed, using updated_at. "
+            "A live or parked turn is never treated as idle. Zero days means never."
+        ),
         summary="How long a conversation sits idle before it is archived. Zero means never.",
         description=(
             "Archiving is about the list, not the data: an archived session is out of the "
@@ -105,8 +111,12 @@ SETTINGS: tuple[SettingDef, ...] = (
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(24,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. The sandbox service already reaps at 24 hours.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub puts remaining seconds on the workspace live block from last "
+            "activity plus this retention, so a long conversation can see the sandbox "
+            "expiry coming."
+        ),
         summary="How long a conversation's files survive after it goes quiet.",
         description=(
             "Reading a file does not count as activity in the service that holds it, so a "
@@ -140,8 +150,8 @@ SETTINGS: tuple[SettingDef, ...] = (
         agent_writable=AgentAccess.FREELY,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(True,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. The hub streams progress and announces nothing when a turn is slow.",
+        origin=Origin.EXISTING,
+        origin_note="The hub emits lucy.turn.slow after this many seconds of a running turn.",
         summary="Whether to say so when a turn is taking a long time.",
         description=(
             "On, a turn that passes `long_turn_seconds` says what it is doing and roughly "
@@ -163,8 +173,8 @@ SETTINGS: tuple[SettingDef, ...] = (
         agent_writable=AgentAccess.FREELY,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(60,),
-        origin=Origin.PROPOSED,
-        origin_note="New here; depends on the same hub change as `notify_on_long_turn`.",
+        origin=Origin.EXISTING,
+        origin_note="The hub waits this many seconds before emitting lucy.turn.slow.",
         summary="How long a turn runs before it counts as a long one.",
         description=(
             "Only meaningful with `notify_on_long_turn` on. Sixty seconds is roughly where "
