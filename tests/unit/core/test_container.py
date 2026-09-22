@@ -9,7 +9,10 @@ thing the loop did was sleep for an hour.
 from __future__ import annotations
 
 import asyncio
+import gc
 import json
+import threading
+import warnings
 from pathlib import Path
 
 import pytest
@@ -153,3 +156,30 @@ class TestTheSweeper:
             assert isinstance(container.sweeper, RetiredSweeper)
         finally:
             asyncio.run(container.aclose())
+
+
+class TestARefusedBuildLeaksNothing:
+    """A build that fails after opening the database must close it.
+
+    Migration and policy loading both run after the open, and a policy file that says
+    something the catalogue refuses is *meant* to raise. That refusal used to drop the
+    open database -- file handle, WAL sidecars and worker thread -- which Python 3.13
+    reports as a ResourceWarning at collection and this suite treats as a failure.
+    """
+
+    def test_a_migration_that_fails_closes_the_database_it_was_given(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def refuse(*_: object, **__: object) -> None:
+            msg = "the schema is not what this build expects"
+            raise RuntimeError(msg)
+
+        monkeypatch.setattr("settings_api.core.container.migrate", refuse)
+        threads_before = threading.active_count()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ResourceWarning)
+            with pytest.raises(RuntimeError, match="schema"):
+                Container.build(build_settings(tmp_path), clock=FakeClock())
+            gc.collect()
+        assert threading.active_count() == threads_before, "the worker thread was given back"

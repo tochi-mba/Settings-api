@@ -82,52 +82,59 @@ class Container:
         """
         clock = clock or SystemClock()
         database = Database(settings.database_path)
-        migrate(database, now=clock.now())
-        policy = policy_rules.load(settings.policy_path)
+        # Everything from here on can refuse to start -- a migration that fails, a
+        # policy file that says something the catalogue rejects -- and a refusal
+        # must not leave the database it just opened for the garbage collector.
+        try:
+            migrate(database, now=clock.now())
+            policy = policy_rules.load(settings.policy_path)
 
-        events = SqlEventLog(database=database)
-        store = SqlSettingsStore(database=database, events=events)
-        service = SettingsService(
-            store=store, events=events, policy=policy, clock=clock, config=settings
-        )
-        jwks = JwksClient(
-            url=settings.keyring_jwks_url,
-            clock=clock,
-            cache_seconds=settings.jwks_cache_seconds,
-            min_refetch_seconds=settings.jwks_min_refetch_seconds,
-            timeout_seconds=settings.keyring_http_timeout_seconds,
-            # The shared client's diagnostics -- a refused key id, a fetch that failed -- land
-            # in this service's structured, redacted log rather than the standard library's.
-            logger=get_logger("settings_api.auth.jwks"),
-        )
+            events = SqlEventLog(database=database)
+            store = SqlSettingsStore(database=database, events=events)
+            service = SettingsService(
+                store=store, events=events, policy=policy, clock=clock, config=settings
+            )
+            jwks = JwksClient(
+                url=settings.keyring_jwks_url,
+                clock=clock,
+                cache_seconds=settings.jwks_cache_seconds,
+                min_refetch_seconds=settings.jwks_min_refetch_seconds,
+                timeout_seconds=settings.keyring_http_timeout_seconds,
+                # The shared client's diagnostics -- a refused key id, a fetch that failed -- land
+                # in this service's structured, redacted log rather than the standard library's.
+                logger=get_logger("settings_api.auth.jwks"),
+            )
 
-        return cls(
-            settings=settings,
-            clock=clock,
-            database=database,
-            policy=policy,
-            events=events,
-            store=store,
-            service=service,
-            erasure=Erasure(database=database, service=service),
-            sweeper=RetiredSweeper(
-                store=store,
+            return cls(
+                settings=settings,
+                clock=clock,
                 database=database,
-                clock=clock,
-                retention_days=settings.retired_retention_days,
-                event_cap=settings.max_events,
-            ),
-            jwks=jwks,
-            verifier=TokenVerifier(
+                policy=policy,
+                events=events,
+                store=store,
+                service=service,
+                erasure=Erasure(database=database, service=service),
+                sweeper=RetiredSweeper(
+                    store=store,
+                    database=database,
+                    clock=clock,
+                    retention_days=settings.retired_retention_days,
+                    event_cap=settings.max_events,
+                ),
                 jwks=jwks,
-                issuer=settings.keyring_issuer,
-                audience_prefix=settings.audience_prefix,
-                allowed_namespaces=settings.allowed_namespaces,
-                clock=clock,
-            ),
-            services=ServiceAuthenticator(services=settings.services),
-            started_monotonic=clock.monotonic(),
-        )
+                verifier=TokenVerifier(
+                    jwks=jwks,
+                    issuer=settings.keyring_issuer,
+                    audience_prefix=settings.audience_prefix,
+                    allowed_namespaces=settings.allowed_namespaces,
+                    clock=clock,
+                ),
+                services=ServiceAuthenticator(services=settings.services),
+                started_monotonic=clock.monotonic(),
+            )
+        except BaseException:
+            database.close()
+            raise
 
     @property
     def uptime_seconds(self) -> float:
@@ -145,9 +152,13 @@ class Container:
                 await self._sweeper_task
             self._sweeper_task = None
 
-        await self.jwks.aclose()
-        # Last: everything above may still want to write on its way out.
-        await self.database.aclose()
+        try:
+            await self.jwks.aclose()
+        finally:
+            # Last: everything above may still want to write on its way out. And in a
+            # `finally`, because a close above that raises must not leave the database
+            # open -- an unclosed connection outlives the error that caused it.
+            await self.database.aclose()
 
     async def _sweep_forever(self) -> None:
         """Sweep, then wait, rather than wait, then sweep.
