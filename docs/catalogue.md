@@ -777,8 +777,9 @@ Almost every entry used to be ``PROPOSED``. The hub now reads the turn limits, t
 model knobs, helper depth and concurrency, memory-write policy, prompt-feed toggles,
 new-session defaults (including incognito), whether reasoning is streamed, whether
 message bodies may appear in the process log, the context window and reclamation knobs,
-and the refuse keys on every turn. Entries that still say ``PROPOSED`` are ones the hub
-stores in policy or catalogue but has not yet made the live behaviour of a conversation.
+idle-session archival, workspace retention on the live block, and the refuse keys on
+every turn. Entries that still say ``PROPOSED`` are ones the hub stores in policy or
+catalogue but has not yet made the live behaviour of a conversation.
 ``docs/catalogue.md`` repeats the origin per entry so that nobody ships a setting
 believing it does something it does not.
 
@@ -816,8 +817,6 @@ and ending with the prompt-feed toggles over one mechanism because nobody comes 
 A package satisfies the assembler exactly as a module does -- it offers ``NAMESPACE`` and
 ``SETTINGS``, which is the whole of the ``NamespaceModule`` protocol -- so nothing in
 ``_MODULES`` next door knows this happened.
-
-> **Needs a change in the owning service first:** `session_idle_archive_days`, `workspace_retention_hours`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `lucy.model`
 
@@ -1599,7 +1598,7 @@ The title is derived from the conversation, so it is one more short piece of tex
 | Default | `30` |
 | Bounds | 0-3650, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. The hub keeps every session in the active list for ever. |
+| Origin | existing — The hub archives quiet conversations as they are listed, using updated_at. A live or parked turn is never treated as idle. Zero days means never. |
 | Safe to fall back to | `0`, `30` |
 
 Archiving is about the list, not the data: an archived session is out of the way, still searchable and still openable. Nothing is deleted by this setting and nothing can be -- deleting a conversation is something you do deliberately, and a number in a settings page is not that.
@@ -1617,7 +1616,7 @@ Zero keeps everything in front of you, which is the honest default for somebody 
 | Default | `24` |
 | Bounds | 1-720, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. The sandbox service already reaps at 24 hours. |
+| Origin | existing — The hub puts remaining seconds on the workspace live block from last activity plus this retention, so a long conversation can see the sandbox expiry coming. |
 | Safe to fall back to | `24` |
 
 Reading a file does not count as activity in the service that holds it, so a long conversation can have its files reaped underneath it. Lucy keeps the sandbox alive while a session is open and warns you before this runs out.
