@@ -1213,7 +1213,7 @@ Advisory only. Existing loop limits and approvals remain in force.
 | Origin | existing — Consumed by the hub's per-turn decisions policy. |
 | Safe to fall back to | `true` |
 
-Only when decisions are enabled. Can only hold a reply back; never lets one through.
+Only when decisions are enabled. Otherwise replies go out unchecked.
 
 #### `lucy.decision_timeout_ms`
 
