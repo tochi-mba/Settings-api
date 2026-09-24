@@ -60,6 +60,7 @@ from typing import TYPE_CHECKING
 
 from settings_api.domain.catalogue.lucy import (
     context,
+    decisions,
     feeds,
     helpers,
     limits,
@@ -77,6 +78,7 @@ if TYPE_CHECKING:
 SETTINGS: tuple[SettingDef, ...] = (
     *model.SETTINGS,
     *context.SETTINGS,
+    *decisions.SETTINGS,
     *limits.SETTINGS,
     *helpers.SETTINGS,
     *permissions.SETTINGS,

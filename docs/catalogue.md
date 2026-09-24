@@ -36,7 +36,7 @@ person's own token. There are two, and both are ones where the service that woul
 from changing them is the service that should not be allowed to.
 
 
-**134 settings across 9 namespaces.**
+**141 settings across 9 namespaces.**
 
 ## Contents
 
@@ -45,7 +45,7 @@ from changing them is the service that should not be allowed to.
 - **`user`** (6) — `erasure_mode`, `grace_days`, `log_values`, `default_write_scope`, `max_pinned`, `search_default_limit`
 - **`persona`** (7) — `default_persona`, `recall_default_limit`, `log_values`, `erasure_mode`, `grace_days`, `max_pinned_fields`, `max_pinned_notes`
 - **`memory`** (7) — `retrieval_limit`, `retrieval_trust_floor`, `write_importance_floor`, `recency_half_life_days`, `consolidation`, `erasure_grace_days`, `block_char_limit`
-- **`lucy`** (76) — `model`, `fallback_model`, `thinking`, `max_thinking_tokens`, `temperature`, `response_style`, `vision_enabled`, `max_context_tokens`, `reserve_percent`, `warn_at_percent`, `compaction_trigger_percent`, `history_turns_kept`, `tool_results_kept`, `max_tool_result_tokens`, `render_read_tokens`, `render_preview_tokens`, `render_total_tokens`, `max_output_tokens_per_turn`, `max_tool_calls_per_turn`, `max_turn_seconds`, `max_llm_turns`, `max_subagent_turns`, `max_steps_per_plan`, `max_parallel_steps`, `step_timeout_seconds`, `plan_timeout_seconds`, `session_token_budget`, `agent_max_depth`, `agent_max_concurrent`, `agent_result_token_cap`, `agent_wall_clock_seconds`, `agent_message_max_chars`, `agent_message_burst`, `permission_mode`, `approval_policy`, `confirm_outward_actions`, `enabled_capabilities`, `disabled_capabilities`, `memory_write_policy`, `memory_retrieval_limit`, `incognito`, `log_message_content`, `input_policy`, `auto_title`, `session_idle_archive_days`, `workspace_retention_hours`, `stream_thinking`, `notify_on_long_turn`, `long_turn_seconds`, `retry_attempts`, `retry_max_seconds`, `downstream_timeout_seconds`, `prompt_feeds_enabled`, `prompt_hide_personal_feeds`, `prompt_allow_unknown_feed_fields`, `feeds_account`, `feeds_persona`, `feeds_music`, `feeds_workspace`, `feeds_research`, `feeds_account_pinned`, `feeds_persona_identity`, `feeds_persona_notes`, `feeds_music_now_playing`, `feeds_music_device`, `feeds_music_shuffled`, `feeds_music_repeat`, `feeds_music_queue_head`, `feeds_workspace_cwd`, `feeds_workspace_shell`, `feeds_workspace_pid`, `feeds_workspace_shells_running`, `feeds_workspace_sandbox`, `feeds_workspace_git_branch`, `feeds_workspace_last_command`, `feeds_research_backend`
+- **`lucy`** (83) — `model`, `fallback_model`, `thinking`, `max_thinking_tokens`, `temperature`, `response_style`, `vision_enabled`, `max_context_tokens`, `reserve_percent`, `warn_at_percent`, `compaction_trigger_percent`, `history_turns_kept`, `tool_results_kept`, `max_tool_result_tokens`, `render_read_tokens`, `render_preview_tokens`, `render_total_tokens`, `decisions`, `decision_shadow_mode`, `decision_capabilities`, `decision_memory`, `decision_recovery`, `decision_timeout_ms`, `decision_max_per_turn`, `max_output_tokens_per_turn`, `max_tool_calls_per_turn`, `max_turn_seconds`, `max_llm_turns`, `max_subagent_turns`, `max_steps_per_plan`, `max_parallel_steps`, `step_timeout_seconds`, `plan_timeout_seconds`, `session_token_budget`, `agent_max_depth`, `agent_max_concurrent`, `agent_result_token_cap`, `agent_wall_clock_seconds`, `agent_message_max_chars`, `agent_message_burst`, `permission_mode`, `approval_policy`, `confirm_outward_actions`, `enabled_capabilities`, `disabled_capabilities`, `memory_write_policy`, `memory_retrieval_limit`, `incognito`, `log_message_content`, `input_policy`, `auto_title`, `session_idle_archive_days`, `workspace_retention_hours`, `stream_thinking`, `notify_on_long_turn`, `long_turn_seconds`, `retry_attempts`, `retry_max_seconds`, `downstream_timeout_seconds`, `prompt_feeds_enabled`, `prompt_hide_personal_feeds`, `prompt_allow_unknown_feed_fields`, `feeds_account`, `feeds_persona`, `feeds_music`, `feeds_workspace`, `feeds_research`, `feeds_account_pinned`, `feeds_persona_identity`, `feeds_persona_notes`, `feeds_music_now_playing`, `feeds_music_device`, `feeds_music_shuffled`, `feeds_music_repeat`, `feeds_music_queue_head`, `feeds_workspace_cwd`, `feeds_workspace_shell`, `feeds_workspace_pid`, `feeds_workspace_shells_running`, `feeds_workspace_sandbox`, `feeds_workspace_git_branch`, `feeds_workspace_last_command`, `feeds_research_backend`
 - **`spotify`** (8) — `default_market`, `max_batch_size`, `confirm_timeout_seconds`, `job_retention_hours`, `default_device`, `shuffle_on_play`, `repeat_mode`, `allow_explicit`
 - **`search`** (8) — `default_model`, `search_backend`, `disabled_providers`, `max_content_chars`, `safe_search`, `store_query_history`, `default_result_count`, `recency_days`
 - **`environments`** (7) — `idle_environment_hours`, `idle_shell_minutes`, `max_environments_per_profile`, `default_shell`, `persist_history`, `command_timeout_seconds`, `max_output_bytes`
@@ -1118,6 +1118,118 @@ Raise it when Lucy keeps picking the wrong item out of a list and having to go b
 The ceiling over the other two: twenty steps that each render inside the read budget still have to share this. Once it is spent the remaining results are rendered as references only, and Lucy is told that is what happened.
 
 This is the number that decides whether a wide plan crowds out the conversation it was meant to serve. Raising it buys detail at the cost of history; lowering it keeps more of what you said and makes Lucy fetch more deliberately.
+
+#### `lucy.decisions`
+
+*Enable Laya-assisted decisions.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `account` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — Consumed by the hub's per-turn decisions policy. |
+| Safe to fall back to | `false` |
+
+Off makes no decision calls. On uses the configured decision service.
+
+#### `lucy.decision_shadow_mode`
+
+*Measure decisions without applying them.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `account` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — Consumed by the hub's per-turn decisions policy. |
+| Safe to fall back to | `true` |
+
+On records suggestions while preserving ordinary behavior.
+
+#### `lucy.decision_capabilities`
+
+*Preload relevant available capabilities.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `account` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — Consumed by the hub's per-turn decisions policy. |
+| Safe to fall back to | `true` |
+
+Only when decisions are enabled. Never executes tools or grants permission.
+
+#### `lucy.decision_memory`
+
+*Rank trusted memory topics by relevance.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `account` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — Consumed by the hub's per-turn decisions policy. |
+| Safe to fall back to | `true` |
+
+Only when decisions are enabled. Incognito sends no memories.
+
+#### `lucy.decision_recovery`
+
+*Suggest a new approach after repeated failures.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `account` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — Consumed by the hub's per-turn decisions policy. |
+| Safe to fall back to | `false` |
+
+Advisory only. Existing loop limits and approvals remain in force.
+
+#### `lucy.decision_timeout_ms`
+
+*Maximum wait for one decision in milliseconds.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `1000` |
+| Bounds | 50-5000, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — Consumed by the hub's per-turn decisions policy. |
+| Safe to fall back to | `1000` |
+
+Exhaustion uses ordinary behavior; helpers do not call the decision service.
+
+#### `lucy.decision_max_per_turn`
+
+*Maximum decision calls in one main turn.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `8` |
+| Bounds | 1-32, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — Consumed by the hub's per-turn decisions policy. |
+| Safe to fall back to | `8` |
+
+Exhaustion uses ordinary behavior; helpers do not call the decision service.
 
 #### `lucy.max_output_tokens_per_turn`
 
