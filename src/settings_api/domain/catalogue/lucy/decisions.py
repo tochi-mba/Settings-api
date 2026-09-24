@@ -66,6 +66,20 @@ SETTINGS: tuple[SettingDef, ...] = (
     ),
     SettingDef(
         namespace=NAMESPACE,
+        key="decision_claims",
+        value_type=SettingType.BOOL,
+        default=True,
+        conservative_values=(True,),
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        origin=Origin.EXISTING,
+        origin_note="Consumed by the hub's per-turn decisions policy.",
+        summary="Catch a reply that claims work no step did, in any wording.",
+        description=(
+            "Only when decisions are enabled. Can only hold a reply back; never lets one through."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
         key="decision_timeout_ms",
         value_type=SettingType.INT,
         default=1000,

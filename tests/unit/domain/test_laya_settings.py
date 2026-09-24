@@ -12,6 +12,7 @@ def test_decision_controls_are_registered_and_bounded() -> None:
         "decision_capabilities": True,
         "decision_memory": True,
         "decision_recovery": False,
+        "decision_claims": True,
         "decision_timeout_ms": 1000,
         "decision_max_per_turn": 8,
     }
