@@ -74,9 +74,7 @@ SETTINGS: tuple[SettingDef, ...] = (
         origin=Origin.EXISTING,
         origin_note="Consumed by the hub's per-turn decisions policy.",
         summary="Catch a reply that claims work no step did, in any wording.",
-        description=(
-            "Only when decisions are enabled. Can only hold a reply back; never lets one through."
-        ),
+        description=("Only when decisions are enabled. Otherwise replies go out unchecked."),
     ),
     SettingDef(
         namespace=NAMESPACE,
