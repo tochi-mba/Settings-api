@@ -167,7 +167,7 @@ that does not start rather than a 500 the first time somebody reads that namespa
 a private one, so a private service registers its own namespace module under the
 entry-point group `settings_api.namespaces` from its own package, and `_assemble()` picks
 it up and checks it identically. Nothing in this tree lists it, imports it, or knows it
-exists. See [ADR-0011](../../docs/adr/0011-private-services-are-extensions.md) and
+exists. See the family's [ADR-0011](https://github.com/tochi-mba/LUCY-assistant/blob/main/docs/adr/0011-private-services-are-extensions.md) and
 [integration.md](integration.md) section 3.4.
 
 ### Regenerate the documentation

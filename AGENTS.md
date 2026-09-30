@@ -12,7 +12,7 @@ searches resolve against, how long their downloads sit on a shared box, which mo
 answers their questions, what "delete" means for their notes, which providers must never
 see their queries.
 
-It is the second hub in this family. [keyring](../Keyring-api) holds the accounts and
+It is the second hub in this family. [keyring](https://github.com/tochi-mba/Keyring-api) holds the accounts and
 the credentials and is the auth root; this service has no accounts of its own. The only
 identity it ever learns is the `sub` of a token keyring signed, verified locally against
 keyring's JWKS document. It never calls keyring at request time, and it cannot ask keyring
@@ -92,7 +92,7 @@ deliberately and say why in the commit message -- do not work around it.
    `domain/types` -- not the errors, not the value helpers, and certainly not a store.
    `_assemble()` combines the modules this repository ships with anything registered under
    the entry point group `settings_api.namespaces`, so a service that is not public brings
-   its own namespace and this repository never names it -- see ADR-0011. A registered
+   its own namespace and this repository never names it -- see the family's [ADR-0011](https://github.com/tochi-mba/LUCY-assistant/blob/main/docs/adr/0011-private-services-are-extensions.md). A registered
    module supplies `NAMESPACE` and `SETTINGS` exactly as a built-in does and goes through
    the same `entry.check()`, so a malformed extension fails at import too. A catalogue module that could import the store is a
    catalogue entry that could have behaviour. This is why `SettingDef.validate` raises a

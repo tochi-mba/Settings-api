@@ -89,7 +89,7 @@ Storage is `(account_id, profile, namespace, key)`. Account rows live under the 
 ## Storage
 
 SQLite, WAL, one file, created private to its owner
-([ADR-0012 in keyring](../../Keyring-api/docs/adr/0012-sqlite.md) made the same call for
+([ADR-0012 in keyring](https://github.com/tochi-mba/Keyring-api/blob/main/docs/adr/0012-sqlite.md) made the same call for
 the same reasons). Migrations are append-only and numbered; `storage/schema.sql` is a
 snapshot regenerated with `make schema`, and CI compares the two so a migration that was
 never applied cannot pass review.
