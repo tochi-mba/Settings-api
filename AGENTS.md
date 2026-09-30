@@ -110,14 +110,19 @@ deliberately and say why in the commit message -- do not work around it.
 5. **SQL stays behind the stores.** The contract "SQL stays behind the stores" forbids
    `api`, `auth` and `domain` from importing `settings_api.storage` or `sqlite3`. A router
    that *could* write a query is a router that will eventually contain one.
-6. **One settings set per account. There is no profile, anywhere.** Four mechanisms and
-   you need all four: the primary key is `(account_id, namespace, key)` with no profile
-   column, so a per-profile value is unrepresentable; no route accepts a profile as a path
-   segment, a query parameter or a body field, and every request body sets
-   `extra="forbid"` so `{"profile": "work"}` is a 422 rather than a silently ignored
-   field; the account comes only from a verified `sub`; and a test asserts that two tokens
-   minted for the same `sub` through different keyring profiles read and write the
-   identical document. See [ADR-0002](docs/adr/0002-settings-are-per-account-not-per-profile.md).
+6. **A setting is account-scoped or profile-scoped, never both.** The catalogue entry
+   declares which (`scope`, default `ACCOUNT`), and `common` may not be profile-scoped --
+   `SettingDef.check` refuses it. Four mechanisms and you need all four: the primary key is
+   `(account_id, profile, namespace, key)`, with account-scoped rows under the sentinel
+   `*` that keyring's profile-name pattern refuses, so a key has one level or the other and
+   never an overlay; a profile is only ever the `?profile=` query parameter, never a path
+   segment or a body field, and every request body sets `extra="forbid"` so
+   `{"profile": "work"}` is a 422 rather than a silently ignored field; the account comes
+   only from a verified `sub`; and a test asserts that two tokens for the same `sub`
+   passing the same `?profile=` share the same rows, while account-scoped settings are the
+   same under every profile. A write of a profile-scoped key without `?profile=` is a 422
+   that names the keys. See
+   [ADR-0002](docs/adr/0002-settings-are-per-account-not-per-profile.md) as amended.
 7. **No account id appears in any path, and no endpoint accepts one.** Every person-facing
    route is under `/v1/settings` and the account comes from `IdentityDep`; every internal
    route takes the account from the **user's** token via `ServiceIdentityDep`. A
@@ -306,7 +311,7 @@ disable SSRF protection, robots compliance or authentication in a service that o
 2. Add wire models in `src/settings_api/api/schemas/<name>.py`. Set
    `model_config = ConfigDict(extra="forbid")` on every request body -- on this service
    that is load-bearing rather than tidy, because the one field a caller might try to send
-   and must never be able to is `profile`. Give every field a `description` and every model
+   and must never be able to is `profile` -- a profile is only ever a query parameter. Give every field a `description` and every model
    an `examples` entry: they are the tool documentation, not decoration.
 3. On every route set `operation_id` (snake_case `verb_noun`, stable forever), `summary`, a
    real `description`, and `responses` for every failure a caller can provoke.
@@ -314,7 +319,9 @@ disable SSRF protection, robots compliance or authentication in a service that o
    matches in declaration order, so a literal path like `/v1/settings/schema` must be
    declared before `/v1/settings/{namespace}`.
 5. Take `IdentityDep` (person) or `ServiceIdentityDep` (service). Never accept an account
-   id, and never accept a profile -- both come from the token, or do not exist.
+   id: it comes from the token. If the route reads or writes profile-scoped settings, take
+   the profile as the `?profile=` query parameter (`ProfileQuery` in the router), never as
+   a path segment or a body field.
 6. Raise domain errors. Map any new one in `_DOMAIN_STATUS` in `api/errors.py`; never build
    an error response in a handler.
 7. Tests: one per behaviour, the OpenAPI contract test extended with the new
@@ -365,7 +372,8 @@ what they lack is your reasoning.
 - [ ] `make check` passes: format, lint, strict types, the five contracts, 100% coverage.
 - [ ] New behaviour is covered by a test named after the behaviour.
 - [ ] Anything that reads or writes a setting works from the token's account and cannot be
-      pointed at another -- and there is no profile anywhere in the change.
+      pointed at another -- and a profile arrives only as `?profile=`, never in a path or
+      a body.
 - [ ] Anything that accepts a string from a caller passes it through the credential
       refusal, or there is a written reason here why it does not.
 - [ ] Nothing new can appear in a log record, an event or a response that should not --

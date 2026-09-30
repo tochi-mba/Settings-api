@@ -549,9 +549,11 @@ this, and does choosing it affect only them?**
   `common.locale` already carries the same information in a standard form. A service should
   derive them rather than this catalogue growing two more strings that can disagree with
   the locale.
-- **A per-profile setting, of any kind.** The whole point of ADR-0002 is that there is one
-  settings set per account. `common.default_profile` answers "which profile do you mean
-  when I don't say" *once*, at account level, which is the question people actually have.
+- **A setting at both levels.** ADR-0002, as amended, lets an entry be profile-scoped
+  where its correct value depends on which credential set is in use, but never account
+  *and* profile: an overlay would put a second copy of every restriction where a person
+  would forget to set it. `common.default_profile` answers "which profile do you mean when
+  I don't say" *once*, at account level, which is the question people actually have.
 
 ### 4.4 Gaps closed during this audit
 
