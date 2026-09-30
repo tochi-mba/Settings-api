@@ -41,6 +41,10 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Fixed
 
+- The API description told a model "there is no such thing as a per-profile setting" and
+  "one settings set per account", while profile-scoped settings are read and written with
+  `?profile=`. It now describes the two exclusive scopes, what omitting `?profile=` does on a
+  read and on a write, and that `common` is account-scoped.
 - `spotify.default_device` and `search.default_result_count` were marked *proposed* --
   "setting these stores the value and changes no behaviour" -- while the hub reads both as
   its music and research defaults. They are *existing*, with notes naming the reader. Stale
