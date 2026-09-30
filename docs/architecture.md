@@ -94,9 +94,11 @@ the same reasons). Migrations are append-only and numbered; `storage/schema.sql`
 snapshot regenerated with `make schema`, and CI compares the two so a migration that was
 never applied cannot pass review.
 
-The sweeper retires values whose setting has left the catalogue, after
-`SETTINGS_API_RETIRED_RETENTION_DAYS`, so a removed setting does not leave rows nobody can
-explain.
+A setting is retired rather than deleted: its entry gains `retired_at`, and from then on
+reads ignore its rows. The sweeper destroys those rows once
+`SETTINGS_API_RETIRED_RETENTION_DAYS` (90 by default) have passed, so a retired setting
+does not leave rows nobody can explain, and a retirement reverted inside that window
+restores everybody's choice intact.
 
 ## What this service will never grow
 
