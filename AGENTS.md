@@ -364,9 +364,10 @@ disable SSRF protection, robots compliance or authentication in a service that o
 - `database_path` is resolved at load, so a relative path cannot mean two places after a
   `chdir`. The test suite uses a real file rather than `:memory:`, because the erasure
   tests read the file's bytes and an in-memory database has none.
-- `make matrix` runs 3.11 and 3.12 because coverage differs between them: until 3.12,
-  `isinstance()` against a runtime-checkable Protocol executed property getters, so a
-  property with no test of its own looked covered on 3.11 and does not on 3.12.
+- `make matrix` runs 3.12 and 3.13, the two interpreters the family CI workflow tests on,
+  because they disagree: 3.13 is the first to report a sqlite connection collected while
+  still open as a `ResourceWarning`, which `filterwarnings = ["error"]` makes a failure
+  that a green run on 3.12 never shows.
 - Assert a file mode with `assert_mode` from `tests/support/filemode.py`, never with
   `stat.S_IMODE` directly. It is exact on POSIX and compares only the owner's bits on
   Windows, where NTFS has no permission bits and every writable file reads 0666, so a

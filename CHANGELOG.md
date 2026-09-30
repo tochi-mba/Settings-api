@@ -39,6 +39,8 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Fixed
 
+- `make matrix` ran 3.11 and 3.12. 3.11 is below `requires-python`, so uv refused it and
+  the target failed before a test ran; it now runs 3.12 and 3.13, which is what CI runs.
 - `scripts/smoke.py` minted its token with `POST /v1/internal/tokens` and an admin token.
   Keyring has no such route; the script now uses `POST /v1/auth/service-token` with a
   session, which is what keyring actually serves.
