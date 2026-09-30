@@ -57,6 +57,12 @@ and the next reader will wonder why. The answer is the context section: marking 
 `owner_writable_only` would break user-api's existing route on the day this service is
 turned on, because that route writes through `/v1/internal` holding the person's token.
 
+> **Note (2026-09).** user-api does not write through here yet. It reads `max_pinned` and
+> `search_default_limit` from settings-api and keeps `erasure_mode`, `grace_days` and
+> `log_values` in its own store, because its erasure sweeper has no user token to present;
+> [integration.md](../integration.md#33-user-api--namespace-user) has the reasoning. The
+> decision above is what keeps that route working on the day it does.
+
 The protection that matters is unaffected. user-api can change `user.erasure_mode` only for
 somebody whose token it is holding, which is to say only when that person is using
 user-api, which is the case in which they could have changed it through user-api anyway. A
