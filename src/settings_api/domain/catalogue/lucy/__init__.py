@@ -8,15 +8,13 @@ range but a voice that sounds wrong. Behaviour like that belongs in a persona no
 is already the family's home for "lessons about how to behave in this profile". The
 division is not arbitrary: knobs here, character there.
 
-Almost every entry used to be ``PROPOSED``. The hub now reads the turn limits, the
-model knobs, helper depth and concurrency, memory-write policy, prompt-feed toggles,
+Almost every entry used to be ``PROPOSED``. None is now: the hub reads the turn limits,
+the model knobs, helper depth and concurrency, memory-write policy, prompt-feed toggles,
 new-session defaults (including incognito), whether reasoning is streamed, whether
 message bodies may appear in the process log, the context window and reclamation knobs,
-idle-session archival, workspace retention on the live block, and the refuse keys on
-every turn. Entries that still say ``PROPOSED`` are ones the hub stores in policy or
-catalogue but has not yet made the live behaviour of a conversation.
-``docs/catalogue.md`` repeats the origin per entry so that nobody ships a setting
-believing it does something it does not.
+idle-session archival, workspace retention on the live block, the decision controls, and
+the refuse keys on every turn. ``docs/catalogue.md`` repeats the origin per entry so that
+nobody ships a setting believing it does something it does not.
 
 Two entries deserve reading together. ``permission_mode`` decides whether Lucy asks before
 acting, and ``approval_policy`` decides what it may never stop asking about. They are
@@ -28,13 +26,14 @@ because the floor is not theirs to lower.
 
 Every other namespace here is one module, because a namespace is a table and a table reads
 best in one file. This one has enough entries with a paragraph each that that is no longer
-true, and it is past the family's limit of a thousand lines in a file.
+true, and as one file it would be past the family's limit of a thousand lines.
 
 The split is by what a person is deciding rather than by length, so that the group a
 reader wants is the group they open:
 
 - :mod:`~settings_api.domain.catalogue.lucy.model` -- which model answers and how it sounds
 - :mod:`~settings_api.domain.catalogue.lucy.context` -- the window, and what is reclaimed first
+- :mod:`~settings_api.domain.catalogue.lucy.decisions` -- the optional assisted judgments
 - :mod:`~settings_api.domain.catalogue.lucy.limits` -- what one turn or plan may do
 - :mod:`~settings_api.domain.catalogue.lucy.helpers` -- the assistants Lucy starts beneath itself
 - :mod:`~settings_api.domain.catalogue.lucy.permissions` -- what it may do without asking

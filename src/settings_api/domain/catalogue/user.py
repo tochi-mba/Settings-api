@@ -1,8 +1,10 @@
 """``user`` -- what deletion means, and what the change log keeps.
 
-These four already exist in user-api, three of them behind the ``SettingsStore`` port that
-was written on day one against the arrival of this service. Wiring them up is a second
-adapter and one line in a composition root; nothing above that port changes.
+Five of these six already exist in user-api. ``max_pinned`` and ``search_default_limit``
+are read from here, per request, inside user-api's own caps. ``erasure_mode``,
+``grace_days`` and ``log_values`` sit behind the ``SettingsStore`` port that was written on
+day one against the arrival of this service, and stay on user-api's own store for now: its
+erasure sweeper has no user token to present here. ``default_write_scope`` is a proposal.
 
 ``erasure_mode`` is deliberately **not** ``owner_writable_only``, and the reason belongs
 here rather than in a commit message: user-api already exposes ``PUT /v1/user/settings``,

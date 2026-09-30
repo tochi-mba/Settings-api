@@ -41,6 +41,14 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Fixed
 
+- Eight namespace module docstrings, which `docs/catalogue.md` prints as each namespace's
+  preamble, described a catalogue that has since moved: `persona` said every entry was a
+  proposal and persona-api had no per-account settings, `user` counted four entries,
+  `keyring` put notifications among the knobs it has and called the re-authentication
+  setting the only owner-only one, `spotify` and `environments` said the values were still
+  one number per box, `lucy` pointed at `PROPOSED` entries that no longer exist and left
+  `decisions` out of its map, `lucy.feeds` miscounted its toggles, and `common` left
+  environments-api out of the default-profile story.
 - The API description told a model a person could decide "how long their downloads sit on
   the server". No setting in this catalogue governs a download; the example is now the one
   that exists, how long the record of a finished job stays readable

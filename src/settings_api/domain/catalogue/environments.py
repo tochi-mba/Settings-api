@@ -3,11 +3,16 @@
 environments-api gives an assistant a Linux shell per account and profile, and reaps what
 nobody is using. Its two reaping clocks and its per-profile cap answer a person's question
 -- "how long may my half-finished work sit there", "how many environments do I want to
-juggle" -- and today each is one number for the whole box.
+juggle" -- and environments-api reads all three from here when an environment is created,
+inside its own configured values. The other four entries are proposals it does not read
+yet: which shell to start, whether history outlives a shell, and the per-command timeout
+and output size a request gets when it names neither.
 
 Everything that bounds what a sandbox *can do* stays with the operator and is not here:
-``allow_network``, ``min_sandbox_tier``, every memory, CPU, disk and output quota,
-``max_environments_per_account``, ``operator_accounts`` and ``api_keys``. A person choosing
+``allow_network``, ``min_sandbox_tier``, every memory, CPU and disk quota and the output
+buffer a shell may hold, ``max_environments_per_account``, ``operator_accounts`` and
+``api_keys``. ``max_output_bytes`` is not one of those: it bounds how much of one
+command's output is handed back, not what the sandbox may produce. A person choosing
 their own network access or sandbox strength would be a person choosing the machine's
 exposure, and that is not a preference. A per-person network *default* was considered and
 left out: its only safe fallback during an outage would be "no network", which would change

@@ -1,11 +1,10 @@
 """``persona`` -- the assistant's model of itself, and what happens to it.
 
-persona-api has **no per-account settings at all** today: its configuration is one
-process-wide model built once at startup and frozen into its adapters as plain integers,
-and its schema has no settings table and no seam where a per-account override could be
-applied. So every entry here is a proposal, and each one names the change persona-api
-needs before the value does anything. ``docs/catalogue.md`` repeats that per entry, so
-nobody ships a setting that silently does nothing.
+Three of these are persona-api's own knobs, and it reads them from here per request,
+inside its own caps: how many items a recall returns by default, and how many fields and
+notes are pinned into the prompt. The other four are proposals, and each one names the
+change persona-api needs before the value does anything. ``docs/catalogue.md`` repeats
+that per entry, so nobody ships a setting that silently does nothing.
 
 Two of them are worth reading together. persona-api allows twenty personas per account and
 has no notion of which one to load when nobody says, so ``default_persona`` is a real
