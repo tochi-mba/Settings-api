@@ -92,6 +92,25 @@ The image runs as a non-root user and its `HEALTHCHECK` calls `/healthy`, which 
 I/O. Point your load balancer at `/ready` instead: that one reports the database, keyring's
 keys, the catalogue and the policy, and answers 503 when any of them is unusable.
 
+## Smoke test
+
+`make smoke` runs `scripts/smoke.py` against a running settings-api and a running keyring.
+It proves what can only go wrong between the two processes: that they agree about the
+issuer, that the configured service tokens and audience prefixes work, that the database
+file is owner-only on this box, and that erasure removes the bytes. It reads:
+
+| Variable | Default | What it is |
+| --- | --- | --- |
+| `SETTINGS_API_URL` | `http://127.0.0.1:8003` | This service. |
+| `KEYRING_URL` | `http://127.0.0.1:8001` | Keyring. |
+| `SMOKE_EMAIL`, `SMOKE_PASSWORD` | none | An account that already exists in keyring. |
+| `SETTINGS_SPOTIFY_TOKEN`, `SETTINGS_SEARCH_TOKEN` | none | The service tokens configured here for spotify-api and web-search-api. |
+| `SETTINGS_DB_PATH` | `var/settings.db` | The database file, for the byte scan and the mode check. |
+
+Set these only for the smoke run. `SETTINGS_API_URL` carries this service's prefix, so if it
+is exported in the shell that then starts settings-api, the service refuses to start with
+an unknown-variable error.
+
 ## Migrations
 
 Migrations are append-only and numbered, and `storage/schema.sql` is a checked-in snapshot:
