@@ -60,7 +60,8 @@ resolves to.
 ## Step 2 — Write the catalogue module
 
 Create `src/settings_api/domain/catalogue/<namespace>.py`. Copy the shape of an existing
-one — `spotify.py` is the smallest.
+one — `user.py` is the smallest. (If the service is not public, the module lives in the
+service's own package instead; see [below](#if-the-service-is-not-public).)
 
 ```python
 """``calendar`` -- what a calendar is allowed to say and how far ahead it looks.
@@ -149,6 +150,15 @@ likely to want it off is the one about to write a credential, and
 `search.store_query_history`, because the service that would benefit from keeping a search
 history is the one that would be doing the keeping.
 
+**`agent_writable` defaults to `NEVER`.** It says whether an assistant may change the
+setting on somebody's behalf: `NEVER`, `WITH_APPROVAL` (the person confirms that particular
+change) or `FREELY` (only where every legal value is a matter of taste). Leave it at
+`NEVER` unless you have a reason; the cost of being too strict is an assistant asking the
+person to change it themselves. settings-api does not enforce it, because it cannot tell
+an assistant's write from the person's. The check refuses three contradictions: `FREELY`
+on an owner-only entry or a `REFUSE` entry, and anything but `NEVER` on a retired one. The
+assistant hub applies it where it knows a model is the writer.
+
 ### Register the module
 
 In `src/settings_api/domain/catalogue/__init__.py`, add the import and put it in
@@ -163,13 +173,38 @@ _MODULES = (common, keyring, user, persona, memory, lucy, spotify, search, envir
 The catalogue is assembled and **checked at import**, so a malformed entry is a process
 that does not start rather than a 500 the first time somebody reads that namespace.
 
-**If the service is not public, there is no module here.** A public repository never names
-a private one, so a private service registers its own namespace module under the
-entry-point group `settings_api.namespaces` from its own package, and `_assemble()` picks
-it up and checks it identically. Nothing in this tree lists it, imports it, or knows it
-exists. See the family's
-[ADR-0011](https://github.com/tochi-mba/LUCY-assistant/blob/main/docs/adr/0011-private-services-are-extensions.md)
-and [integration.md](integration.md) section 3.4.
+### If the service is not public
+
+There is no module here and no edit to `_MODULES`. A public repository never names a
+private one (the family's
+[ADR-0011](https://github.com/tochi-mba/LUCY-assistant/blob/main/docs/adr/0011-private-services-are-extensions.md)),
+so the namespace ships in a small package of the service's own and attaches through the
+entry-point group `settings_api.namespaces`:
+
+1. Write the module exactly as in Step 2, in that package. It imports
+   `settings_api.domain.types`, so the package depends on `settings-api`.
+2. Register it in the package's own `pyproject.toml`. The entry-point name is free-form;
+   the value is the module's import path:
+
+   ```toml
+   [project.entry-points."settings_api.namespaces"]
+   calendar = "calendar_settings.namespace"
+   ```
+
+3. Install the package into the same Python environment as settings-api — in a
+   deployment, an image layer built on top of this one. `_assemble()` loads every module
+   registered under the group, after the built-in ones, and checks it identically. A module
+   that will not import, a malformed entry, or a namespace that clashes with another stops
+   the process at startup.
+4. Grant it in `SETTINGS_API_SERVICES` as in Step 3. Nothing in this repository changes.
+
+Do not run `make catalogue` or `make check` in an environment where the extension is
+installed. The generator writes every namespace it can see, so the private one would land
+in the public `docs/catalogue.md`, and the catalogue tests count namespaces and fail on the
+extra one. Test the extension's entries in its own repository.
+
+See [integration.md](integration.md#39-a-service-this-repository-does-not-name--its-own-namespace)
+for how such a namespace is consumed.
 
 ### Regenerate the documentation
 
@@ -177,8 +212,8 @@ and [integration.md](integration.md) section 3.4.
 make catalogue
 ```
 
-and commit `docs/catalogue.md` in the same commit as the entry. A test asserts the two
-match, so forgetting is a failing build rather than a stale page.
+and commit `docs/catalogue.md` in the same commit as the entry. CI regenerates the page
+and fails on a diff, so forgetting is a failing build rather than a stale page.
 
 > **The contract will stop you importing anything else.** Modules under
 > `domain/catalogue/` may import `domain/types` and nothing else — not the errors, not the
@@ -279,8 +314,9 @@ In settings-api:
 - The parametrised catalogue suite covers every new entry automatically — key shape, the
   default validating against its own bounds, the conservative set, the prose, the anchored
   pattern. **You do not write those.**
-- Update the per-namespace counts in `tests/unit/domain/test_catalogue.py`. They exist to
-  catch an accidental deletion, so they are meant to need updating.
+- Update `EXPECTED_COUNTS` and the total in `tests/unit/domain/test_catalogue.py`, and add
+  any profile-scoped entry to `PROFILE_SCOPED` there. They exist to catch an accidental
+  deletion or a scope nobody meant to change, so they are meant to need updating.
 - Add the service to `tests/conftest.py`'s `SERVICES` if you want it in the internal-surface
   tests, and add: it reads its own namespace merged with `common`; it gets a **403** for
   another service's namespace; a user token from another audience family is a **401**.
@@ -304,7 +340,9 @@ In the new service:
 - [ ] Every `USE_DEFAULT` entry's default is in its `conservative_values`.
 - [ ] Bounds match the owning service's own validators exactly.
 - [ ] `origin` is honest, and `origin_note` names the attribute or the change needed.
-- [ ] The module is in `_MODULES` and `make catalogue` has been run and committed.
+- [ ] The module is in `_MODULES` (or, for a private service, registered under
+      `settings_api.namespaces` in its own package) and `make catalogue` has been run and
+      committed.
 - [ ] The service grant has a unique ≥32-character token and the narrowest namespace list.
 - [ ] `audience_prefix` matches what keyring actually mints.
 - [ ] The new service ships dark: empty base URL keeps its old behaviour.
