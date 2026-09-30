@@ -11,7 +11,8 @@ a **startup error**, so a typo fails loudly instead of leaving a default in plac
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `SETTINGS_API_ENVIRONMENT` | `local` | Reported by the probes. |
+| `SETTINGS_API_APP_NAME` | `settings` | The title of the OpenAPI document served at `/docs`. |
+| `SETTINGS_API_ENVIRONMENT` | `local` | A label, written into the startup log record. |
 | `SETTINGS_API_LOG_LEVEL` | `INFO` | |
 | `SETTINGS_API_LOG_FORMAT` | `json` | `console` for readable local output. |
 | `SETTINGS_API_HOST` / `_PORT` | `127.0.0.1` / `8003` | |
@@ -43,16 +44,18 @@ that works: the blast radius of one compromised service token is exactly that li
 One rule decides every `audience_prefix`: a service that also calls keyring's internal
 surface presents the *same* user token there, and keyring accepts it only when its
 audience is exactly that service's name in `KEYRING_SERVICE_TOKENS`. So those services use
-their own name — `spotify-api`, `web-search-api`, `environments-api`. A
-prefix that differs fails closed, and looks like a working service whose every call is a
-401.
+their own name — `lucy-api`, `spotify-api`, `web-search-api`, `environments-api`. For a
+service that does not call keyring's internal surface, the prefix is whatever audience its
+user tokens are minted for: `memory-api`, `user`, `persona`, and `keyring` for the lookup
+token keyring mints for itself at login. A prefix that differs fails closed, and looks
+like a working service whose every call is a 401.
 
 ### Operator policy
 
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `SETTINGS_API_POLICY_PATH` | unset | A JSON file narrowing or pinning catalogue entries. A configured path that does not exist is a startup error, so a deployment that meant to narrow something and mistyped does not run wide open. |
-| `SETTINGS_API_ALLOWED_NAMESPACES` | every namespace | Narrow to the namespaces this deployment actually serves. |
+| `SETTINGS_API_ALLOWED_NAMESPACES` | every namespace | A JSON list. Narrow it to the namespaces this deployment actually serves; a service granted a namespace outside it is a startup error. |
 
 A policy may make a bound tighter, move a default inside the bounds that result, and pin a
 value. It may never loosen a bound, add an enum choice or raise a cap; a policy that tries
@@ -64,7 +67,7 @@ is a startup error. Every narrowing is visible to the person in `describe_settin
 | --- | --- | --- |
 | `SETTINGS_API_MAX_VALUE_BYTES` | `4096` | Ceiling on one stored value. |
 | `SETTINGS_API_MAX_EVENTS` | `2000` | Events kept per account. |
-| `SETTINGS_API_CACHE_TTL_SECONDS` | `60` | How long a resolved namespace is served before revalidating. |
+| `SETTINGS_API_CACHE_TTL_SECONDS` | `60` | Advertised to consuming services as `Cache-Control: private, max-age=...` on `/v1/internal`. settings-client does not read the header; it caches for its own `ttl_seconds`, also 60 by default. |
 | `SETTINGS_API_RETIRED_RETENTION_DAYS` | `90` | How long values whose setting left the catalogue are kept before the sweeper drops them. |
 | `SETTINGS_API_SWEEP_INTERVAL_SECONDS` | `3600` | How often that sweep runs. |
 
@@ -72,8 +75,18 @@ is a startup error. Every narrowing is visible to the person in `describe_settin
 
 ```bash
 make docker                                   # build the image
-docker run -p 8003:8003 --env-file .env settings-api:local
+docker run -p 8003:8003 -v settings-data:/var/lib/settings-api \
+  -e SETTINGS_API_KEYRING_JWKS_URL=http://keyring:8001/.well-known/jwks.json \
+  -e SETTINGS_API_KEYRING_ISSUER=http://keyring:8001 \
+  settings-api:local
 ```
+
+The image sets `SETTINGS_API_HOST=0.0.0.0` and puts the database at
+`/var/lib/settings-api/settings.db`, a volume. It deliberately does not set the keyring URL
+and issuer, or `SETTINGS_API_SERVICES`: those name the deployment. Do not pass a `.env`
+copied unchanged from `.env.example` with `--env-file`: its `SETTINGS_API_HOST=127.0.0.1`
+and relative `SETTINGS_API_DATABASE_PATH` override the image's values, so the port mapping
+reaches nothing and the database lands outside the volume.
 
 The image runs as a non-root user and its `HEALTHCHECK` calls `/healthy`, which does no
 I/O. Point your load balancer at `/ready` instead: that one reports the database, keyring's
@@ -98,7 +111,7 @@ that was never applied from passing review.
 | One service's calls 401, everything else fine | That service's `audience_prefix` is not the name keyring mints its tokens under | Set it to that service's name in `KEYRING_SERVICE_TOKENS`. |
 | One service's calls 403 | The namespace is not on its grant | Add it to that entry's `namespaces`. |
 | `/ready` reports keyring unusable | The key document cannot be fetched | Check `KEYRING_JWKS_URL` is reachable from this host. Tokens keep verifying against held keys for a bounded grace. |
-| Startup error naming a variable | A typo, or a setting that was renamed | The message names the variable and, where it was renamed, its replacement. |
+| Startup error naming a variable | A `SETTINGS_API_` variable that matches no setting: a typo, or a setting that no longer exists | The message lists every unknown variable at once. Compare them with `.env.example`. |
 | Startup error about `SERVICES` | A token under 32 characters, or two services sharing one | Generate one per service: `python -c "import secrets; print(secrets.token_urlsafe(32))"`. |
 
 ## Backups
