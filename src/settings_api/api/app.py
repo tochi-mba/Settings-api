@@ -27,8 +27,8 @@ logger = get_logger(__name__)
 
 API_DESCRIPTION = """
 One place a person decides how every service in this family behaves **for them**: which
-country their music searches resolve against, how long their downloads sit on the server,
-which model answers their questions, what "delete" means for their notes, and which
+country their music searches resolve against, how long the record of a finished job stays
+readable, which model answers their questions, what "delete" means for their notes, and which
 providers must never see their queries.
 
 Read a namespace to find out what somebody has chosen. Write to it when they ask you to.
