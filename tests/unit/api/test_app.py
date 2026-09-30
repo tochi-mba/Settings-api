@@ -16,6 +16,7 @@ from fastapi import FastAPI
 
 from settings_api.api.app import API_DESCRIPTION, create_app, start, stop
 from settings_api.core.container import Container
+from settings_api.domain.registry import BY_QUALIFIED
 from tests.conftest import build_settings
 from tests.fakes.clock import FakeClock
 
@@ -29,6 +30,24 @@ class TestCreateApp:
         flat = " ".join(API_DESCRIPTION.split())
         assert "Do not change a setting on your own initiative" in flat
         assert "no such thing as a per-profile setting" in flat
+
+    def test_every_example_in_the_opening_is_a_setting_this_catalogue_has(self) -> None:
+        # The opening sentence tells a model what a person can decide here. Each example
+        # has to be something a setting in this build actually decides, or the model goes
+        # looking for it. No public setting governs a download, so none may be promised.
+        flat = " ".join(API_DESCRIPTION.split())
+        opening = flat.split("Read a namespace")[0]
+        examples = {
+            "which country their music searches resolve against": "spotify.default_market",
+            "how long the record of a finished job stays readable": "common.job_retention_hours",
+            "which model answers their questions": "lucy.model",
+            'what "delete" means for their notes': "user.erasure_mode",
+            "which providers must never see their queries": "search.disabled_providers",
+        }
+        for phrase, setting in examples.items():
+            assert phrase in opening, phrase
+            assert setting in BY_QUALIFIED, setting
+        assert "download" not in opening.lower()
 
     def test_every_router_is_mounted(self, tmp_path: Path) -> None:
         # Starlette wraps an included router rather than flattening its routes into

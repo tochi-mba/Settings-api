@@ -41,6 +41,10 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Fixed
 
+- The API description told a model a person could decide "how long their downloads sit on
+  the server". No setting in this catalogue governs a download; the example is now the one
+  that exists, how long the record of a finished job stays readable
+  (`common.job_retention_hours`).
 - `scripts/smoke.py` read its target from `SETTINGS_API_URL`, a name under this service's own
   prefix: exported in the shell that starts settings-api, it made the service refuse to start
   with an unknown-variable error. It is now `SMOKE_SETTINGS_API_URL`, matching user-api's
