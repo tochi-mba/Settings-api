@@ -18,7 +18,7 @@ identity it ever learns is the `sub` of a token keyring signed, verified locally
 keyring's JWKS document. It never calls keyring at request time, and it cannot ask keyring
 anything about a person.
 
-The service exists because roughly four dozen knobs across seven services are not really
+The service exists because dozens of knobs across the family's services are not really
 deployment decisions. `spotify-api`'s `default_market` is the clearest one: which
 country's catalogue somebody's track searches resolve against is a fact about a person,
 deployed as an environment variable that applies to everybody on the box.
@@ -70,9 +70,9 @@ may use, except `domain`.
 
 `domain/` is the bottom because it is where the rules are written down in a form a person
 can read. `domain/catalogue/` is the extreme case: it is a **table**, restricted by
-contract to importing `domain/types` alone, so forty-two settings stay something a
-reviewer can check against what the services actually do rather than something they have
-to execute in their head.
+contract to importing `domain/types` alone, so every setting stays something a reviewer
+can check against what the services actually do rather than something they have to
+execute in their head.
 
 `auth/` sits below `events`/`settings` and above `storage` because it needs nothing from
 the database: a token is verified against a cached public key and nothing else. That
