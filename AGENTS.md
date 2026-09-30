@@ -58,8 +58,9 @@ src/settings_api/
              and catalogue/ -- one module per namespace. Imports nothing internal.
   storage/   the SQLite connection on its one thread, the migrations, the schema
              snapshot, and how a datetime becomes a column.
-  auth/      JwksClient, TokenVerifier, ServiceAuthenticator. The only package that
-             imports `jwt` or `httpx`, and the only one that decides who a request is for.
+  auth/      JwksClient, TokenVerifier, ServiceAuthenticator, over keyring_client. The only
+             package allowed keyring_client, jwt or httpx, and the only one that decides
+             who a request is for.
   events/    EventLog port + SQL adapter. The person's own history of their own decisions.
   settings/  SettingsStore port + SQL adapter, the service, erasure, and the sweeper.
   api/       FastAPI app, routers, wire schemas, problem+json errors, middleware.
@@ -137,10 +138,10 @@ deliberately and say why in the commit message -- do not work around it.
    processes. Two services sharing a token is refused at startup for the same reason.
 9. **Nothing reads the wall clock.** Every component that behaves differently over time
    takes a `Clock`, and `SystemClock` in `core/clock.py` is the only caller of
-   `datetime.now` or `time.monotonic` in `src/`. This includes JWT expiry: PyJWT's
-   `verify_exp` **and** `verify_iat` are switched off and expiry is re-checked against the
-   injected clock, because PyJWT refuses a token whose `iat` is in the future by the
-   *wall* clock, which would refuse every good token in a test that pinned the clock to
+   `datetime.now` or `time.monotonic` in `src/`. This includes JWT expiry:
+   `keyring_client`'s verifier switches off PyJWT's `verify_exp` **and** `verify_iat` and
+   re-checks expiry against the `Clock` this service passes it, because PyJWT refuses a
+   token whose `iat` is in the future by the *wall* clock, which would refuse every good token in a test that pinned the clock to
    next Tuesday. What enforces it: ruff's `DTZ` rules, `storage/times.py` raising on a
    naive datetime, and a suite that never sleeps. The one deliberate exception is
    `time.perf_counter()` in `api/middleware.py`, which measures a duration for a log field
@@ -267,10 +268,20 @@ regeneration -- no migration, no schema change, and no deploy of the services th
    is a change at the call site; `PROPOSED` means that service needs a change first, and
    `origin_note` says which. `docs/catalogue.md` repeats it per entry, so nobody ships a
    setting that silently does nothing.
-5. `make catalogue`, and commit the regenerated `docs/catalogue.md` with the entry.
-6. Tests: the catalogue's parametrised suite covers the entry automatically -- key shape,
-   the default validating against its own bounds, the conservative set, the prose. Add a
-   behavioural test only if the setting means something the generic ones cannot check.
+5. Leave `scope` at `ACCOUNT` unless the right value depends on which keyring profile is in
+   use, and leave `agent_writable` at `NEVER` unless an assistant may safely change it --
+   see [docs/adding-a-service.md](docs/adding-a-service.md) for both.
+6. `make catalogue`, and commit the regenerated `docs/catalogue.md` with the entry.
+7. Tests: the catalogue's parametrised suite covers the entry automatically -- key shape,
+   the default validating against its own bounds, the conservative set, the prose. Update
+   `EXPECTED_COUNTS` (and `PROFILE_SCOPED`, if it is profile-scoped) in
+   `tests/unit/domain/test_catalogue.py`. Add a behavioural test only if the setting means
+   something the generic ones cannot check.
+
+A new namespace -- a new service -- is the same recipe plus a module, a line in `_MODULES`
+and a grant; [docs/adding-a-service.md](docs/adding-a-service.md) walks through it,
+including a private service's namespace, which attaches through the
+`settings_api.namespaces` entry-point group instead.
 
 Do **not** add a setting that turns off a protection. There is a list in the module
 docstring of `core/config.py` of the settings this family has refused to add, and it is
