@@ -101,15 +101,17 @@ file is owner-only on this box, and that erasure removes the bytes. It reads:
 
 | Variable | Default | What it is |
 | --- | --- | --- |
-| `SETTINGS_API_URL` | `http://127.0.0.1:8003` | This service. |
+| `SMOKE_SETTINGS_API_URL` | `http://127.0.0.1:8003` | This service. |
 | `KEYRING_URL` | `http://127.0.0.1:8001` | Keyring. |
 | `SMOKE_EMAIL`, `SMOKE_PASSWORD` | none | An account that already exists in keyring. |
 | `SETTINGS_SPOTIFY_TOKEN`, `SETTINGS_SEARCH_TOKEN` | none | The service tokens configured here for spotify-api and web-search-api. |
 | `SETTINGS_DB_PATH` | `var/settings.db` | The database file, for the byte scan and the mode check. |
 
-Set these only for the smoke run. `SETTINGS_API_URL` carries this service's prefix, so if it
-is exported in the shell that then starts settings-api, the service refuses to start with
-an unknown-variable error.
+The URL is `SMOKE_SETTINGS_API_URL` rather than `SETTINGS_API_URL` because every
+`SETTINGS_API_`-prefixed variable the service does not recognise is a startup error: a
+smoke variable under that prefix, exported in the shell that then starts settings-api,
+would stop it starting. None of the names above carries the prefix, and
+`tests/unit/test_smoke_script.py` keeps it that way.
 
 ## Migrations
 

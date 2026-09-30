@@ -18,7 +18,7 @@ Run it with ``make smoke``. It prints what it did and exits non-zero on the firs
 problem, because a smoke test that carried on would bury the first thing that broke.
 
 Environment:
-    SETTINGS_API_URL          default http://127.0.0.1:8003
+    SMOKE_SETTINGS_API_URL    default http://127.0.0.1:8003
     KEYRING_URL               default http://127.0.0.1:8001
     SMOKE_EMAIL               an account that already exists in keyring
     SMOKE_PASSWORD            its password
@@ -37,7 +37,7 @@ from typing import Any
 
 import httpx
 
-SETTINGS_URL = os.environ.get("SETTINGS_API_URL", "http://127.0.0.1:8003").rstrip("/")
+SETTINGS_URL = os.environ.get("SMOKE_SETTINGS_API_URL", "http://127.0.0.1:8003").rstrip("/")
 KEYRING_URL = os.environ.get("KEYRING_URL", "http://127.0.0.1:8001").rstrip("/")
 EMAIL = os.environ.get("SMOKE_EMAIL", "")
 PASSWORD = os.environ.get("SMOKE_PASSWORD", "")

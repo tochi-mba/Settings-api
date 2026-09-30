@@ -39,6 +39,11 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Fixed
 
+- `scripts/smoke.py` read its target from `SETTINGS_API_URL`, a name under this service's own
+  prefix: exported in the shell that starts settings-api, it made the service refuse to start
+  with an unknown-variable error. It is now `SMOKE_SETTINGS_API_URL`, matching user-api's
+  `SMOKE_USER_API_URL`, and a test checks every variable the script reads against the
+  startup check.
 - `make matrix` ran 3.11 and 3.12. 3.11 is below `requires-python`, so uv refused it and
   the target failed before a test ran; it now runs 3.12 and 3.13, which is what CI runs.
 - `scripts/smoke.py` minted its token with `POST /v1/internal/tokens` and an admin token.
