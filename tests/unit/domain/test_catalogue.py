@@ -39,7 +39,7 @@ EXPECTED_COUNTS = {
     "user": 6,
     "persona": 7,
     "memory": 7,
-    "lucy": 84,
+    "lucy": 85,
     "spotify": 8,
     "search": 8,
     "environments": 7,
@@ -177,7 +177,7 @@ class TestTheCatalogueAsAWhole:
         assert {
             namespace: len(entries) for namespace, entries in CATALOGUE.items()
         } == EXPECTED_COUNTS
-        assert len(BY_QUALIFIED) == sum(EXPECTED_COUNTS.values()) == 142
+        assert len(BY_QUALIFIED) == sum(EXPECTED_COUNTS.values()) == 143
 
     def test_profile_scoped_settings_are_exactly_this_set(self) -> None:
         # Exclusive scopes, declared on the entry. A setting nobody thought about stays

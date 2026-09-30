@@ -78,6 +78,21 @@ SETTINGS: tuple[SettingDef, ...] = (
     ),
     SettingDef(
         namespace=NAMESPACE,
+        key="decision_keeping",
+        value_type=SettingType.BOOL,
+        default=True,
+        conservative_values=(True, False),
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        origin=Origin.EXISTING,
+        origin_note="Consumed by the hub's per-turn decisions policy.",
+        summary="Notice when something worth keeping was said and nothing kept it.",
+        description=(
+            "Only when decisions are enabled. It can only prompt the assistant to consider "
+            "keeping it; the memory write policy and approvals still decide whether it is kept."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
         key="decision_timeout_ms",
         value_type=SettingType.INT,
         default=1000,
