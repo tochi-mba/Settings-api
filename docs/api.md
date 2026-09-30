@@ -17,8 +17,8 @@ names the keys. A body field named `profile` is also a 422 (`extra="forbid"`).
 
 | Operation | Route | What it does |
 | --- | --- | --- |
-| `describe_settings` | `GET /v1/settings/schema` | The catalogue as this deployment has it: every setting, its type, bounds, default, and whether an operator narrowed or pinned it. |
-| `get_settings` | `GET /v1/settings` | Every namespace resolved for this person. |
+| `describe_settings` | `GET /v1/settings/schema` | The catalogue as this deployment has it, for every namespace the token grants: each setting's type, scope, bounds, default, current value, and whether an operator narrowed or pinned it. |
+| `get_settings` | `GET /v1/settings` | Every namespace the token grants, resolved for this person. |
 | `get_namespace` | `GET /v1/settings/{namespace}` | One namespace, with `common` merged underneath it. |
 | `get_setting` | `GET /v1/settings/{namespace}/{key}` | One value, with where it came from. |
 | `update_settings` | `PUT /v1/settings` | Several values at once, applied atomically. |
@@ -28,11 +28,21 @@ names the keys. A body field named `profile` is also a 422 (`extra="forbid"`).
 | `forget_settings` | `DELETE /v1/settings` | Erase everything this service holds for this person. |
 | `export_settings` | `GET /v1/settings/export` | Everything this person has chosen, as a document they can keep. |
 | `import_settings` | `POST /v1/settings/import` | Apply such a document back. |
-| `read_settings_events` | `GET /v1/settings/events` | What changed, when, and which service asked. |
+| `read_settings_events` | `GET /v1/settings/events` | What changed, when, and which service asked. Newest first; `?limit=` (1-200, default 50) and `?before=<sequence>` page through it. Never the values. |
 
 Resetting is not the same as setting the default: a reset removes the stored row, so the
 person follows the default wherever it goes next. Setting the value pins it to what it is
 today ([ADR-0005](adr/0005-sparse-storage-so-defaults-can-move.md)).
+
+### Revisions and ETags
+
+Every account has one revision, bumped by every write that changes something; a write that
+changes nothing bumps nothing. `describe_settings`, `get_settings`, `get_namespace`,
+`resolve_settings` and every write return it in the body and as the `ETag` header, spelled
+`"<account_id>.<revision>"`. Every write under `/v1/settings` except `forget_settings`
+accepts `If-Match` with that ETag and answers 412 if the account has moved on since, so
+two assistants editing one person's settings cannot overwrite each other unseen. A weak
+tag (`W/...`) or one belonging to another account is also a 412.
 
 ## Internal: `/v1/internal`
 
@@ -45,7 +55,7 @@ Two credentials, always:
 
 | Operation | Route | What it does |
 | --- | --- | --- |
-| `resolve_settings` | `GET /v1/internal/settings/{namespace}` | This person's effective values for one namespace, with `common` merged underneath, plus a `fallbacks` block saying what each key's default is and what to do during an outage. Supports `If-None-Match`. |
+| `resolve_settings` | `GET /v1/internal/settings/{namespace}` | This person's effective values for one namespace, with `common` merged underneath, plus a `fallbacks` block saying what each key's default is and what to do during an outage. Supports `If-None-Match` (a 304 when nothing changed) and advertises `Cache-Control: private, max-age=<SETTINGS_API_CACHE_TTL_SECONDS>`. |
 | `set_setting_for_user` | `PUT /v1/internal/settings/{namespace}/{key}` | The person's own decision, travelling through a service that offered them the choice. Never the service's decision. |
 
 A service may read and write only the namespaces it was granted, plus `common`. Anything
@@ -72,9 +82,12 @@ would be restarted repeatedly for somebody else's problem.
 
 | Code | Means |
 | --- | --- |
-| 400 / 422 | The value is not one the catalogue allows, or a profile-scoped write omitted `?profile=`. The body names the bound or the keys. |
+| 304 | `resolve_settings` only: the `If-None-Match` ETag still matches. No body. |
+| 400 | A document sent to `update_settings` or `import_settings` names settings that do not exist. The body names every one. |
 | 401 | The token was not accepted. One message for every cause. |
-| 403 | A namespace this service was not granted, or a setting only the person may change. |
+| 403 | A namespace the token or the service was not granted, or a setting only the person may change. |
 | 404 | No such namespace or key in the catalogue. |
 | 409 | The value is pinned by operator policy. |
-| 503 | A dependency this request needed could not be reached. |
+| 412 | The `If-Match` ETag is not this account's current revision. Re-read and retry. |
+| 422 | The value is the wrong type, out of bounds or too large; it looks like a credential; a profile-scoped write omitted `?profile=`; an import names an export format this build does not read; or the request itself is malformed, such as a body `profile` field. The body names the rule, never the value. |
+| 503 | Keyring's signing keys could not be fetched, so the token could not be checked. Sent with `Retry-After: 5`. |
