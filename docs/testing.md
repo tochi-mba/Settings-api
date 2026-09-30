@@ -11,8 +11,8 @@ does not know this codebase should be able to read the test names and learn what
 service promises:
 
 ```python
-async def test_a_reset_lets_the_default_move_again(...)
-async def test_a_service_may_not_read_a_namespace_it_was_not_granted(...)
+async def test_a_service_cannot_read_another_services_namespace(...)
+async def test_two_accounts_are_completely_isolated_on_every_read_route(...)
 ```
 
 Each test does one thing, with the arrangement, the action and the assertion visibly
@@ -42,21 +42,27 @@ teaches the wrong contract, and the bug only shows up in production.
 
 | Layer | Where | What it proves |
 | --- | --- | --- |
-| Unit | `tests/unit/` | One module's rules: the catalogue's bounds, policy narrowing, value coercion, token verification. |
+| Unit | `tests/unit/domain/`, `auth/`, `core/`, `events/`, `settings/` | One module's rules: the catalogue's bounds, policy narrowing, value coercion, token verification, scope, the sweeper. |
 | Storage | `tests/unit/storage/` | Migrations apply in order, the snapshot matches, the database file is private to its owner. |
 | API | `tests/unit/api/` | Status codes, problem bodies, the two-credential rules, and that no route takes an account id. |
-| Contract | `tests/contract/` | The **real** `settings_client` against the **real** app in-process, over ASGI. This is what stops the client and the service drifting apart. |
+| Client | `tests/unit/client/` | `settings_client` over a hand-written `httpx.MockTransport`: caching, revalidation, single-flight, outage behaviour, and the fake. |
+| Contract | `tests/contract/` | The OpenAPI document: the exact set of sixteen `operation_id`s, a summary, description and documented failures on each, no path or parameter naming an account, and a profile only ever as a query parameter. |
+| Integration | `tests/integration/` | The whole app in-process: a full set-read-reset-forget flow, isolation between accounts and profiles, no value in any log record, and erasure leaving no bytes in the database or its `-wal`. |
 
 ## The tests that must never be deleted
 
-- **Isolation.** One account cannot read or write another's, through any route, and asking
-  answers the same as asking for something that does not exist.
+- **Isolation.** One account cannot read or write another's, through any route
+  (`tests/integration/test_smoke.py`), and two tokens for one person share profile-scoped
+  rows only when they name the same `?profile=`.
 - **Grants.** A service reaching for a namespace it was not granted gets a 403, and a user
   token from outside the calling service's audience family gets a 401.
 - **Outage behaviour.** Every `refuse` setting refuses rather than falling back, and every
   `use_default` setting falls back rather than failing. That contract is what seven other
   services rely on.
-- **Secrets.** No token, and no person's value, reaches a log record.
+- **Secrets.** No token, and no person's value, reaches a log record
+  (`tests/integration/test_no_values_in_logs.py`).
+- **Erasure.** `forget_settings` leaves no trace of a value in the database file or its
+  `-wal` (`tests/integration/test_erasure.py`).
 
 ## Running less than everything
 
