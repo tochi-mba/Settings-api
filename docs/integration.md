@@ -367,7 +367,7 @@ mean for my data" once does not answer a differently-shaped version of it.
 
 Not every member of the family is public, and a public repository never names a private
 one: no module, no grant in a sample, no helpful example in a docstring. See
-[ADR-0011](../../docs/adr/0011-private-services-are-extensions.md).
+the family's [ADR-0011](https://github.com/tochi-mba/LUCY-assistant/blob/main/docs/adr/0011-private-services-are-extensions.md).
 
 Such a service brings its own namespace with it. It ships a small package that registers a
 module under the entry-point group `settings_api.namespaces`:
