@@ -11,7 +11,8 @@
 Which country's catalogue a person's track searches resolve against is a fact about the
 person, deployed as if it were a fact about a machine. On a box serving one person that is
 invisible; on a box serving two people in different countries it is wrong for one of them,
-and the only fix available today is a second deployment.
+and before spotify-api read it from here the only fix was a second deployment. It now reads
+this namespace per request, and the variable is what a person gets until they choose.
 
 The bounds below are the owning service's own, read out of its config rather than chosen
 here. That matters for ``confirm_timeout_seconds`` in particular: spotify-api caps it at

@@ -2,15 +2,18 @@
 
 keyring is the auth root for the whole family and holds the accounts, the profiles and the
 credentials. Three of its deployment-wide knobs are really the person's: how long a
-session survives being idle, how many sessions they may hold at once, and whether they
-hear about it when a new one appears.
+session survives being idle, how long it may live however often it is used, and how many
+sessions they may hold at once. keyring reads all three from here at login, inside its own
+caps. The other four are proposals keyring has no mechanism for yet: whether to use email
+at all, whether to hear about a new session or a credential change, and whether a
+credential write asks for the password again.
 
-The fourth entry here is new and is the most consequential in the namespace.
-``require_reauth_for_credential_changes`` is the only setting in this catalogue that a
-service must not be able to turn off through the ordinary write path, because a service
+That last one is the most consequential in the namespace.
+``require_reauth_for_credential_changes`` is one of the two settings in this catalogue that
+a service must not be able to turn off through the ordinary write path, because a service
 that could turn it off would be a service that could disarm the check standing between it
 and the credentials it is about to ask for. It is ``owner_writable_only`` for exactly that
-reason -- see ADR-0004.
+reason -- see ADR-0004. The other is ``search.store_query_history``.
 """
 
 from __future__ import annotations

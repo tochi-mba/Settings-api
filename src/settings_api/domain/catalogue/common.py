@@ -6,12 +6,13 @@ person would answer it once per service and get it wrong in one of them.
 
 ``default_profile`` is the one that resolves an existing disagreement rather than
 proposing a new convenience, and it is worth being precise about what that disagreement
-is. spotify-api and web-search-api each carry their own ``keyring_default_profile``,
-defaulting to ``"personal"``; another carries a ``default_profile`` defaulting to
-``"default"``. keyring itself has no notion of a default profile at all -- every one of
-its routes takes the profile as a required path segment with no fallback -- so the
-question "which profile do you mean when I don't say" has, today, three answers and no
-owner. This gives it one.
+is. spotify-api and web-search-api each carry their own ``keyring_default_profile`` and
+environments-api its ``ENVAPI_DEFAULT_PROFILE``, all defaulting to ``"personal"``; another
+carries a ``default_profile`` defaulting to ``"default"``. keyring itself has no notion of
+a default profile at all -- every one of its routes takes the profile as a required path
+segment with no fallback -- so the question "which profile do you mean when I don't say"
+had one answer per service and no owner. This gives it one: those services now read this
+setting and keep their own variable only as the answer while nobody has chosen.
 """
 
 from __future__ import annotations

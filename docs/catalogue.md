@@ -58,12 +58,13 @@ person would answer it once per service and get it wrong in one of them.
 
 ``default_profile`` is the one that resolves an existing disagreement rather than
 proposing a new convenience, and it is worth being precise about what that disagreement
-is. spotify-api and web-search-api each carry their own ``keyring_default_profile``,
-defaulting to ``"personal"``; another carries a ``default_profile`` defaulting to
-``"default"``. keyring itself has no notion of a default profile at all -- every one of
-its routes takes the profile as a required path segment with no fallback -- so the
-question "which profile do you mean when I don't say" has, today, three answers and no
-owner. This gives it one.
+is. spotify-api and web-search-api each carry their own ``keyring_default_profile`` and
+environments-api its ``ENVAPI_DEFAULT_PROFILE``, all defaulting to ``"personal"``; another
+carries a ``default_profile`` defaulting to ``"default"``. keyring itself has no notion of
+a default profile at all -- every one of its routes takes the profile as a required path
+segment with no fallback -- so the question "which profile do you mean when I don't say"
+had one answer per service and no owner. This gives it one: those services now read this
+setting and keep their own variable only as the answer while nobody has chosen.
 
 > **Needs a change in the owning service first:** `timezone`, `locale`, `units`, `time_format`, `redact_values_in_logs`, `currency`. Until that change lands, setting these stores the value and changes no behaviour.
 
@@ -212,15 +213,18 @@ Presentation only. Nothing is converted, recharged or recorded differently becau
 
 keyring is the auth root for the whole family and holds the accounts, the profiles and the
 credentials. Three of its deployment-wide knobs are really the person's: how long a
-session survives being idle, how many sessions they may hold at once, and whether they
-hear about it when a new one appears.
+session survives being idle, how long it may live however often it is used, and how many
+sessions they may hold at once. keyring reads all three from here at login, inside its own
+caps. The other four are proposals keyring has no mechanism for yet: whether to use email
+at all, whether to hear about a new session or a credential change, and whether a
+credential write asks for the password again.
 
-The fourth entry here is new and is the most consequential in the namespace.
-``require_reauth_for_credential_changes`` is the only setting in this catalogue that a
-service must not be able to turn off through the ordinary write path, because a service
+That last one is the most consequential in the namespace.
+``require_reauth_for_credential_changes`` is one of the two settings in this catalogue that
+a service must not be able to turn off through the ordinary write path, because a service
 that could turn it off would be a service that could disarm the check standing between it
 and the credentials it is about to ask for. It is ``owner_writable_only`` for exactly that
-reason -- see ADR-0004.
+reason -- see ADR-0004. The other is ``search.store_query_history``.
 
 > **Needs a change in the owning service first:** `email_notifications`, `notify_on_new_session`, `require_reauth_for_credential_changes`, `notify_on_credential_change`. Until that change lands, setting these stores the value and changes no behaviour.
 
@@ -352,9 +356,11 @@ Subordinate to `email_notifications`: with that off, this changes nothing. On is
 
 ## `user`
 
-These four already exist in user-api, three of them behind the ``SettingsStore`` port that
-was written on day one against the arrival of this service. Wiring them up is a second
-adapter and one line in a composition root; nothing above that port changes.
+Five of these six already exist in user-api. ``max_pinned`` and ``search_default_limit``
+are read from here, per request, inside user-api's own caps. ``erasure_mode``,
+``grace_days`` and ``log_values`` sit behind the ``SettingsStore`` port that was written on
+day one against the arrival of this service, and stay on user-api's own store for now: its
+erasure sweeper has no user token to present here. ``default_write_scope`` is a proposal.
 
 ``erasure_mode`` is deliberately **not** ``owner_writable_only``, and the reason belongs
 here rather than in a commit message: user-api already exposes ``PUT /v1/user/settings``,
@@ -478,12 +484,11 @@ The counterpart of `persona.recall_default_limit`, and present for the same reas
 
 ## `persona`
 
-persona-api has **no per-account settings at all** today: its configuration is one
-process-wide model built once at startup and frozen into its adapters as plain integers,
-and its schema has no settings table and no seam where a per-account override could be
-applied. So every entry here is a proposal, and each one names the change persona-api
-needs before the value does anything. ``docs/catalogue.md`` repeats that per entry, so
-nobody ships a setting that silently does nothing.
+Three of these are persona-api's own knobs, and it reads them from here per request,
+inside its own caps: how many items a recall returns by default, and how many fields and
+notes are pinned into the prompt. The other four are proposals, and each one names the
+change persona-api needs before the value does anything. ``docs/catalogue.md`` repeats
+that per entry, so nobody ships a setting that silently does nothing.
 
 Two of them are worth reading together. persona-api allows twenty personas per account and
 has no notion of which one to load when nobody says, so ``default_persona`` is a real
@@ -773,15 +778,13 @@ range but a voice that sounds wrong. Behaviour like that belongs in a persona no
 is already the family's home for "lessons about how to behave in this profile". The
 division is not arbitrary: knobs here, character there.
 
-Almost every entry used to be ``PROPOSED``. The hub now reads the turn limits, the
-model knobs, helper depth and concurrency, memory-write policy, prompt-feed toggles,
+Almost every entry used to be ``PROPOSED``. None is now: the hub reads the turn limits,
+the model knobs, helper depth and concurrency, memory-write policy, prompt-feed toggles,
 new-session defaults (including incognito), whether reasoning is streamed, whether
 message bodies may appear in the process log, the context window and reclamation knobs,
-idle-session archival, workspace retention on the live block, and the refuse keys on
-every turn. Entries that still say ``PROPOSED`` are ones the hub stores in policy or
-catalogue but has not yet made the live behaviour of a conversation.
-``docs/catalogue.md`` repeats the origin per entry so that nobody ships a setting
-believing it does something it does not.
+idle-session archival, workspace retention on the live block, the decision controls, and
+the refuse keys on every turn. ``docs/catalogue.md`` repeats the origin per entry so that
+nobody ships a setting believing it does something it does not.
 
 Two entries deserve reading together. ``permission_mode`` decides whether Lucy asks before
 acting, and ``approval_policy`` decides what it may never stop asking about. They are
@@ -793,13 +796,14 @@ because the floor is not theirs to lower.
 
 Every other namespace here is one module, because a namespace is a table and a table reads
 best in one file. This one has enough entries with a paragraph each that that is no longer
-true, and it is past the family's limit of a thousand lines in a file.
+true, and as one file it would be past the family's limit of a thousand lines.
 
 The split is by what a person is deciding rather than by length, so that the group a
 reader wants is the group they open:
 
 - :mod:`~settings_api.domain.catalogue.lucy.model` -- which model answers and how it sounds
 - :mod:`~settings_api.domain.catalogue.lucy.context` -- the window, and what is reclaimed first
+- :mod:`~settings_api.domain.catalogue.lucy.decisions` -- the optional assisted judgments
 - :mod:`~settings_api.domain.catalogue.lucy.limits` -- what one turn or plan may do
 - :mod:`~settings_api.domain.catalogue.lucy.helpers` -- the assistants Lucy starts beneath itself
 - :mod:`~settings_api.domain.catalogue.lucy.permissions` -- what it may do without asking
@@ -2274,7 +2278,8 @@ One line of the research feed. Off leaves the rest of that feed in place. Unknow
 Which country's catalogue a person's track searches resolve against is a fact about the
 person, deployed as if it were a fact about a machine. On a box serving one person that is
 invisible; on a box serving two people in different countries it is wrong for one of them,
-and the only fix available today is a second deployment.
+and before spotify-api read it from here the only fix was a second deployment. It now reads
+this namespace per request, and the variable is what a person gets until they choose.
 
 The bounds below are the owning service's own, read out of its config rather than chosen
 here. That matters for ``confirm_timeout_seconds`` in particular: spotify-api caps it at
@@ -2600,11 +2605,16 @@ This is a search preference, not a prompt line. Which backend is in force in the
 environments-api gives an assistant a Linux shell per account and profile, and reaps what
 nobody is using. Its two reaping clocks and its per-profile cap answer a person's question
 -- "how long may my half-finished work sit there", "how many environments do I want to
-juggle" -- and today each is one number for the whole box.
+juggle" -- and environments-api reads all three from here when an environment is created,
+inside its own configured values. The other four entries are proposals it does not read
+yet: which shell to start, whether history outlives a shell, and the per-command timeout
+and output size a request gets when it names neither.
 
 Everything that bounds what a sandbox *can do* stays with the operator and is not here:
-``allow_network``, ``min_sandbox_tier``, every memory, CPU, disk and output quota,
-``max_environments_per_account``, ``operator_accounts`` and ``api_keys``. A person choosing
+``allow_network``, ``min_sandbox_tier``, every memory, CPU and disk quota and the output
+buffer a shell may hold, ``max_environments_per_account``, ``operator_accounts`` and
+``api_keys``. ``max_output_bytes`` is not one of those: it bounds how much of one
+command's output is handed back, not what the sandbox may produce. A person choosing
 their own network access or sandbox strength would be a person choosing the machine's
 exposure, and that is not a preference. A per-person network *default* was considered and
 left out: its only safe fallback during an outage would be "no network", which would change

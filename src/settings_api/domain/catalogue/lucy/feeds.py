@@ -5,9 +5,9 @@ whether an incognito session hides the personal ones, and whether a key Lucy nev
 declared may arrive -- and then one toggle per capability with one per field beneath it,
 so that hiding the workspace's process id does not also cost the working directory.
 
-The per-field toggles are generated rather than typed out. There are twenty-one of them,
-they differ only in three strings, and the table they come from has to match the hub's own
-row for row: a generated set cannot drift entry by entry, and the table below stays short
+The toggles are generated rather than typed out. There are twenty-one of them -- five per
+capability and sixteen per field -- the field ones differ only in three strings, and the
+table they come from has to match the hub's own row for row: a generated set cannot drift entry by entry, and the table below stays short
 enough to read as the table it is.
 
 Lucy owns these rather than the sibling that publishes the lines, because a switch the
