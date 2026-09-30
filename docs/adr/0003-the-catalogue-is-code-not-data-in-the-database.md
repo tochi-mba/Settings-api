@@ -91,3 +91,10 @@ would be a **second, namespaced, deployment-owned catalogue** loaded beside this
 the same shape and the same checks -- not making this one editable. The invariant worth
 keeping is that every setting a person can be offered went through review somewhere; where
 the review happens is negotiable, whether it happens is not.
+
+> **Note (2026-09).** That extension point now exists, for a different reason: a service
+> that is not public cannot have a module here. An installed package registers a namespace
+> module under the entry-point group `settings_api.namespaces`, and `_assemble()` checks it
+> exactly as it checks a built-in one, at import. It is still code, reviewed in its own
+> repository, never data in the database. See the family's
+> [ADR-0011](https://github.com/tochi-mba/LUCY-assistant/blob/main/docs/adr/0011-private-services-are-extensions.md).

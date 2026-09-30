@@ -27,8 +27,8 @@ fix available is a second deployment of spotify-api with a different value. Nobo
 choose that, which means in practice nobody fixes it: one of the two people quietly gets
 the wrong catalogue and has no way to say so.
 
-It is not one field. There are forty-one more in the same shape, and `AGENTS.md` states
-the case in one sentence: "The service exists because roughly three dozen knobs across six
+It is not one field. There are forty-one more in the same shape, and `AGENTS.md` stated
+the case in one sentence at the time: "The service exists because roughly three dozen knobs across six
 services are not really deployment decisions." How long a download sits on a shared box,
 which model answers a question, what `DELETE` means for somebody's notes, how long a
 session survives being idle, which providers must never see a query. Each of them is
