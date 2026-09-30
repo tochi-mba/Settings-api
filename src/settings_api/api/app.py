@@ -51,10 +51,15 @@ does not schedule what is already tombstoned.
 is refused with a 422 naming keyring, which is the service built for exactly that. There
 is no override.
 
-**No endpoint takes an account id, and there is no such thing as a per-profile setting.**
-Whose settings you are reading comes from your token. One settings set per account,
-however many keyring profiles that account has -- so "which profile do you mean when I
-don't say" is itself one account-level answer.
+**No endpoint takes an account id, and every setting has exactly one scope.** Whose
+settings you are reading comes from your token. An account-scoped setting is one value for
+the person under every keyring profile. A profile-scoped setting is one value per keyring
+profile, chosen with `?profile=` and a profile name such as `personal` or `work`.
+`describe_settings` reports each setting's `scope`. Read a profile-scoped setting without
+`?profile=` and you get its default, not anybody's choice; write one without it and you get
+a 422 naming the keys. `profile` is only ever that query parameter -- in a request body it
+is a 422. Everything in `common` is account-scoped, so "which profile do you mean when I
+don't say" (`common.default_profile`) is itself one account-level answer.
 """.strip()
 
 

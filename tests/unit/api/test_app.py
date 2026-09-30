@@ -17,6 +17,7 @@ from fastapi import FastAPI
 from settings_api.api.app import API_DESCRIPTION, create_app, start, stop
 from settings_api.core.container import Container
 from settings_api.domain.registry import BY_QUALIFIED
+from settings_api.domain.types import SettingScope
 from tests.conftest import build_settings
 from tests.fakes.clock import FakeClock
 
@@ -29,7 +30,19 @@ class TestCreateApp:
         # The description is wrapped at 90 columns in the source; compare on words.
         flat = " ".join(API_DESCRIPTION.split())
         assert "Do not change a setting on your own initiative" in flat
-        assert "no such thing as a per-profile setting" in flat
+        assert "No endpoint takes an account id" in flat
+
+    def test_it_describes_the_two_scopes_the_catalogue_has(self) -> None:
+        # A model reads this before anything else. Telling it there is no per-profile
+        # setting while `?profile=` selects a value per profile sends it to the wrong
+        # value -- or to a 422 -- with no idea why. Every scope in the code is named.
+        flat = " ".join(API_DESCRIPTION.split())
+        assert "no such thing as a per-profile setting" not in flat
+        for scope in SettingScope:
+            assert f"{scope.value}-scoped" in flat, scope
+        assert "`?profile=`" in flat
+        assert "you get its default" in flat
+        assert "422" in flat
 
     def test_every_example_in_the_opening_is_a_setting_this_catalogue_has(self) -> None:
         # The opening sentence tells a model what a person can decide here. Each example
