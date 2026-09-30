@@ -351,6 +351,16 @@ class TestTheCatalogueAsAWhole:
         assert (main.default, main.minimum, main.maximum) == (12, 1, 100)
         assert (child.default, child.minimum, child.maximum) == (8, 1, 50)
 
+    def test_the_output_ceiling_is_no_higher_than_environments_api_serves(self) -> None:
+        # environments-api refuses a request for more than 8 MiB of captured output
+        # (`max_output_bytes: Field(le=8 * 1024 * 1024)` on its exec body). A catalogue
+        # that allowed more would let a person choose a default the service then refuses.
+        environments_api_ceiling = 8 * 1024 * 1024
+        entry = BY_QUALIFIED["environments.max_output_bytes"]
+        assert entry.maximum == environments_api_ceiling
+        assert isinstance(entry.default, int)
+        assert entry.default <= environments_api_ceiling
+
 
 class TestAssembly:
     """The failure arms of the import-time check, reached with hand-built modules."""

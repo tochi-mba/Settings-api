@@ -2748,9 +2748,9 @@ Two minutes is today's behaviour in spirit and is therefore the fallback: an out
 | Type | `int` |
 | Scope | `account` |
 | Default | `1048576` |
-| Bounds | 4096-16777216, operator-clampable |
+| Bounds | 4096-8388608, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. environments-api caps captured stdout per command. |
+| Origin | **proposed** — New here. environments-api takes `max_output_bytes` per exec request, default 256 KiB and at most 8 MiB, and has no per-person default. |
 | Safe to fall back to | `1048576` |
 
 A ceiling on what Lucy will ever put in a tool result, not on what the process may print. Bytes beyond this are truncated with a count, never silently dropped.

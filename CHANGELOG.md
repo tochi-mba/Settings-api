@@ -41,6 +41,10 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Fixed
 
+- `environments.max_output_bytes` allowed up to 16 MiB, but environments-api refuses an exec
+  request for more than 8 MiB of output. The maximum is now 8 MiB (8388608), the owning
+  service's own ceiling; the 1 MiB default was already inside it. The setting is still
+  *proposed*, so nothing reads a larger value that may already be stored.
 - The API description told a model "there is no such thing as a per-profile setting" and
   "one settings set per account", while profile-scoped settings are read and written with
   `?profile=`. It now describes the two exclusive scopes, what omitting `?profile=` does on a
