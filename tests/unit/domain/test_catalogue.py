@@ -116,6 +116,37 @@ PROFILE_SCOPED = frozenset(
     }
 )
 
+READ_BY_A_SERVICE = frozenset(
+    {
+        # Each of these is read from settings-api today by the service named, found by
+        # reading that service's own code. `proposed` promises a person that setting the
+        # value changes nothing yet, so none of these may carry it. Every `lucy` entry is
+        # read by the hub and is checked below without being listed.
+        "common.default_profile",  # spotify-api, web-search-api, environments-api
+        "common.job_retention_hours",  # web-search-api, merged under `search`
+        "keyring.session_ttl_days",  # keyring, at login
+        "keyring.session_absolute_ttl_days",
+        "keyring.max_sessions",
+        "user.max_pinned",  # user-api
+        "user.search_default_limit",
+        "persona.recall_default_limit",  # persona-api
+        "persona.max_pinned_fields",
+        "persona.max_pinned_notes",
+        "spotify.default_market",  # spotify-api
+        "spotify.max_batch_size",
+        "spotify.confirm_timeout_seconds",
+        "spotify.default_device",  # the hub, as the music pack's default device
+        "search.default_model",  # web-search-api
+        "search.search_backend",  # web-search-api, and the hub's research default
+        "search.disabled_providers",
+        "search.max_content_chars",
+        "search.default_result_count",  # the hub, as the research pack's default count
+        "environments.idle_environment_hours",  # environments-api, at create
+        "environments.idle_shell_minutes",
+        "environments.max_environments_per_profile",
+    }
+)
+
 
 @pytest.mark.parametrize("entry", ENTRIES, ids=IDS)
 class TestEveryEntry:
@@ -198,6 +229,12 @@ class TestTheCatalogueAsAWhole:
 
     def test_common_is_first_in_documentation_order(self) -> None:
         assert next(iter(CATALOGUE)) == COMMON == "common"
+
+    def test_a_setting_a_service_already_reads_is_not_marked_proposed(self) -> None:
+        read = READ_BY_A_SERVICE | {entry.qualified for entry in CATALOGUE["lucy"]}
+        assert read <= set(BY_QUALIFIED)
+        proposed = sorted(q for q in read if BY_QUALIFIED[q].origin is Origin.PROPOSED)
+        assert proposed == []
 
     def test_exactly_two_settings_are_owner_writable_only(self) -> None:
         owner_only = {entry.qualified for entry in ENTRIES if entry.owner_writable_only}

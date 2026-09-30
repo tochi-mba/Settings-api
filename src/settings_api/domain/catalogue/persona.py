@@ -62,19 +62,14 @@ SETTINGS: tuple[SettingDef, ...] = (
         conservative_values=(20,),
         origin=Origin.EXISTING,
         origin_note=(
-            "persona-api has `recall_default_limit` = 20, but it is dead: nothing reads it, "
-            "and the live default is the literal `limit: LimitQuery = 20` on six routes."
+            "persona-api's `recall_default_limit`, default 20, which its list, recall, "
+            "export and event routes use when a request names no limit."
         ),
         summary="How many items a recall returns when the caller does not ask for a number.",
         description=(
             "Bounded above by persona-api's own `recall_max_limit`, which is 100. Raising "
             "this means more context loaded by default and a larger prompt; lowering it means "
-            "less to read and more round trips.\n\n"
-            "Marked as existing rather than proposed because the knob is written down in "
-            "persona-api's configuration -- but wiring it up means fixing a defect there "
-            "first: the setting exists and is never read, so the documented default and the "
-            "actual default are two different twenties that could drift apart without anyone "
-            "noticing."
+            "less to read and more round trips."
         ),
     ),
     SettingDef(

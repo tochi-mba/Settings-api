@@ -41,6 +41,13 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Fixed
 
+- `spotify.default_device` and `search.default_result_count` were marked *proposed* --
+  "setting these stores the value and changes no behaviour" -- while the hub reads both as
+  its music and research defaults. They are *existing*, with notes naming the reader. Stale
+  origin notes are corrected too: `persona.recall_default_limit` is read by persona-api,
+  memory-api does run a consolidation pass, and environments-api is one of the services
+  `common.default_profile` replaces. A test pins every setting a family service is known
+  to read as *existing*.
 - Eight namespace module docstrings, which `docs/catalogue.md` prints as each namespace's
   preamble, described a catalogue that has since moved: `persona` said every entry was a
   proposal and persona-api had no per-account settings, `user` counted four entries,

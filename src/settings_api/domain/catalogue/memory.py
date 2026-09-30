@@ -115,7 +115,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         choices=("never", "on_session_end", "continuous"),
         on_unavailable=OnUnavailable.REFUSE,
         origin=Origin.PROPOSED,
-        origin_note="New here. The pass that tidies memory does not exist yet.",
+        origin_note=(
+            "New here. memory-api now runs an idle-merge pass on a deployment-wide clock "
+            "(`MEMORY_CONSOLIDATE_IDLE_SECONDS`, `MEMORY_CONSOLIDATE_INTERVAL_SECONDS`, zero "
+            "interval for off); it has no per-account choice of when, and no session-end hook."
+        ),
         summary="When an assistant tidies what it has remembered.",
         description=(
             "Consolidation merges near-duplicates, writes better summaries for a subject, "

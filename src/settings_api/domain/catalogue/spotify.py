@@ -138,10 +138,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(None,),
-        origin=Origin.PROPOSED,
+        origin=Origin.EXISTING,
         origin_note=(
-            "New here. spotify-api plays on whichever device Spotify last used; it has no "
-            "per-account default device."
+            "Read by the lucy hub, which passes it as the device when a music action names "
+            "none. spotify-api itself plays on whichever device Spotify last used and does "
+            "not read it."
         ),
         summary="Which speaker or computer to play on when the request does not name one.",
         description=(

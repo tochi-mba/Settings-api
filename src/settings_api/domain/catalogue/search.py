@@ -188,10 +188,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(8,),
-        origin=Origin.PROPOSED,
+        origin=Origin.EXISTING,
         origin_note=(
-            "New here. web-search-api takes a count per request; this is the default it "
-            "should use when the request omits one."
+            "Read by the lucy hub, which passes it, held to 1-20, as the result count when "
+            "a research call names none. web-search-api takes a count per request and "
+            "does not read it."
         ),
         summary="How many results a search returns when the request does not ask for a number.",
         description=(
