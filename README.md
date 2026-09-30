@@ -49,12 +49,14 @@ states the current count.
                      person's token (aud: settings)
                                   |
                                   v
-  keyring  --JWKS-->  [ settings-api ]  <--service token + user's token--  user-api
- (auth root)               |     ^                                         persona-api
-                           |     |                                          environments-api
-                       SQLite    +---------------------------------------   spotify-api
-                    one account,                                           web-search-api
-                   one settings set                                          keyring-api
+  keyring  --JWKS-->  [ settings-api ]  <--service token + user's token--  lucy-api (hub)
+ (auth root)               |     ^                                         keyring-api
+                           |     |                                         user-api
+                       SQLite    +---------------------------------------  persona-api
+               one row per value a person                                  spotify-api
+                 chose, and nothing else                                   web-search-api
+                                                                           environments-api
+                                                                           memory-api
 ```
 
 Two surfaces:
@@ -121,11 +123,13 @@ settings = HttpSettingsClient(
     base_url=config.settings_api_base_url,
     service_token=config.settings_api_token,
 )
-resolved = await settings.resolve("spotify", user_token=caller.token)
+resolved = await settings.resolve("spotify", user_token=caller.token, profile=caller.profile)
 market = resolved["default_market"]
 ```
 
-The client handles caching (keyed by token, never by an unverified `sub`),
+`profile` is optional; pass it whenever the caller is acting inside a keyring profile, so
+profile-scoped keys resolve for that profile. The client handles caching (keyed by token,
+namespace and profile, never by an unverified `sub`),
 `If-None-Match` revalidation, single-flight, and what to do during an outage -- serve the
 person's own cached values, or fall back per the setting's declared rule, or raise. See
 [docs/integration.md](docs/integration.md) for the per-service wiring and
@@ -140,9 +144,15 @@ make check       # the gate: format, lint, strict types, contracts, tests at 100
 make run         # serve on :8003 with reload; docs at /docs
 ```
 
+The service starts without keyring, and `/healthy` answers at once. Every other route needs
+a token keyring signed, checked against the keys at `SETTINGS_API_KEYRING_JWKS_URL`
+(`http://127.0.0.1:8001/.well-known/jwks.json` by default), and `/ready` reports whether
+they can be fetched. `make smoke` drives a running settings-api and a running keyring end
+to end.
+
 Configuration is every `SETTINGS_API_`-prefixed environment variable in
-[.env.example](.env.example). A prefixed variable matching no setting is a **startup
-error**, not a warning.
+[.env.example](.env.example), described in [docs/operations.md](docs/operations.md). A
+prefixed variable matching no setting is a **startup error**, not a warning.
 
 Two generated files are checked in and CI fails on a diff:
 `src/settings_api/storage/schema.sql` (`make schema`) and `docs/catalogue.md`
@@ -153,11 +163,18 @@ Two generated files are checked in and CI fails on a diff:
 | | |
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | How work is done here. Read before your first edit. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, the loop, and what a change needs before review. |
+| [docs/architecture.md](docs/architecture.md) | The layers, a request end to end, and why the shape is what it is. |
+| [docs/api.md](docs/api.md) | Every route, its headers, and every status it answers. |
 | [docs/catalogue.md](docs/catalogue.md) | Every setting, generated from the catalogue. |
 | [docs/integration.md](docs/integration.md) | How each service consumes a namespace, and the full audit of what is and is not covered. |
-| [docs/adding-a-service.md](docs/adding-a-service.md) | Registering a new service's settings. |
+| [docs/adding-a-service.md](docs/adding-a-service.md) | Registering a new service's settings, public or private. |
+| [docs/operations.md](docs/operations.md) | Configuration, deployment, and what each failure means. |
+| [docs/testing.md](docs/testing.md) | How the tests are written, and which must never be deleted. |
 | [docs/mcp.md](docs/mcp.md) | Exposing this as assistant tools. |
-| [docs/adr/](docs/adr/) | The decisions, and what would change our minds. |
+| [docs/adr/](docs/adr/README.md) | The decisions, and what would change our minds. |
+| [clients/python/](clients/python/README.md) | `settings-client`, the library every consuming service uses. |
+| [CHANGELOG.md](CHANGELOG.md) | What changed. |
 
 ## What this is not
 
