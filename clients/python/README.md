@@ -2,7 +2,73 @@
 
 The client every service in this family uses to read one person's settings from
 settings-api. Four lines at the call site; everything else -- caching, revalidation,
-single-flight, and what to do when settings-api is down -- is handled here so that six
-services do not each get it slightly wrong.
+single-flight, and what to do when settings-api is down -- is handled here so that each
+consuming service does not get it slightly wrong on its own.
 
-See `docs/integration.md` in the settings-api repository for the per-service wiring.
+## Install
+
+It is not published to a package index. Take it from a tagged git source with `uv`:
+
+```toml
+[project]
+dependencies = ["settings-client"]
+
+[tool.uv.sources]
+settings-client = { git = "https://github.com/tochi-mba/Settings-api", subdirectory = "clients/python", tag = "settings-client-v0.2.0" }
+```
+
+It needs Python 3.12 or later and depends only on `httpx`.
+
+## Use
+
+```python
+from settings_client import HttpSettingsClient
+
+settings = HttpSettingsClient(
+    base_url=config.settings_api_base_url,
+    service_token=config.settings_api_token,
+)
+resolved = await settings.resolve("spotify", user_token=caller.token, profile=caller.profile)
+market = resolved["default_market"]
+```
+
+- `service_token` is this service's entry in settings-api's `SETTINGS_API_SERVICES`.
+- `user_token` is the end user's keyring token, the one the service already holds. Its
+  audience must belong to this service's own audience family.
+- `profile` selects profile-scoped values. Account-scoped values always come back.
+- `await settings.set(namespace, key, value, user_token=..., profile=...)` writes one
+  setting on the person's behalf and returns the new revision. Only ever do this for a
+  change the person asked for.
+- `await settings.aclose()` releases the connection pool.
+
+Construct the client at startup; it makes no request until the first `resolve`. Do not
+fetch settings during startup, and do not fail to start because settings-api is down.
+
+## What it raises
+
+| Exception | Means |
+| --- | --- |
+| `SettingsRefused` | settings-api is unreachable, and the key you read is one whose default must not be guessed. Raised when the key is **read**, not when the namespace is resolved, so fail only the operation that needs it. |
+| `SettingsUnavailable` | settings-api is unreachable and this client has never seen the namespace, so it knows no defaults. |
+| `SettingsRejected` | settings-api answered and refused: 401 or 403 for a misconfigured grant or token, 404 for an unknown namespace, and on a write 409 or 422. `.status_code` and `.detail` say which. |
+
+All three derive from `SettingsClientError`. During an outage the client serves this
+token's cached document first, with `stale=True`, then a document built from the
+namespace's declared fallbacks, and only then raises.
+
+## Testing a consuming service
+
+```python
+from settings_client.testing import FakeSettingsClient, asgi_client
+
+fake = FakeSettingsClient()
+fake.seed("spotify", {"default_market": "PT"})
+fake.unavailable = True  # the case most services forget to test
+```
+
+`FakeSettingsClient` satisfies the same `SettingsClient` protocol as the real client.
+`asgi_client(app, service_token=...)` is the real client talking to an ASGI app in-process,
+for a contract test against a real settings-api.
+
+[docs/integration.md](https://github.com/tochi-mba/Settings-api/blob/main/docs/integration.md)
+in the settings-api repository says how each service in the family is wired.
