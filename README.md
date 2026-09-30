@@ -2,9 +2,9 @@
 
 One place a person decides how every service in this family behaves **for them**.
 
-Which country their music searches resolve against. How long their downloads sit on a
-shared box. Which model answers their questions. What "delete" means for their notes.
-Which providers must never see their queries.
+Which country their music searches resolve against. How long an idle workspace of theirs
+stays up on a shared box. Which model answers their questions. What "delete" means for
+their notes. Which providers must never see their queries.
 
 ```
 GET /v1/settings/spotify        ->  {"default_market": "PT", "timezone": "Europe/Lisbon", ...}

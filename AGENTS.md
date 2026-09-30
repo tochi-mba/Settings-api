@@ -8,12 +8,13 @@ points at it.
 
 **settings-api** is one HTTP service holding, for each account, that account's choices
 about how every other service in the family behaves for them. Which country their music
-searches resolve against, how long their downloads sit on a shared box, which model
-answers their questions, what "delete" means for their notes, which providers must never
-see their queries.
+searches resolve against, how long an idle workspace of theirs stays up on a shared box,
+which model answers their questions, what "delete" means for their notes, which providers
+must never see their queries.
 
-It is the second hub in this family. [keyring](https://github.com/tochi-mba/Keyring-api) holds the accounts and
-the credentials and is the auth root; this service has no accounts of its own. The only
+It is the second hub in this family.
+[keyring](https://github.com/tochi-mba/Keyring-api) holds the accounts and the credentials
+and is the auth root; this service has no accounts of its own. The only
 identity it ever learns is the `sub` of a token keyring signed, verified locally against
 keyring's JWKS document. It never calls keyring at request time, and it cannot ask keyring
 anything about a person.
@@ -92,10 +93,12 @@ deliberately and say why in the commit message -- do not work around it.
    `domain/types` -- not the errors, not the value helpers, and certainly not a store.
    `_assemble()` combines the modules this repository ships with anything registered under
    the entry point group `settings_api.namespaces`, so a service that is not public brings
-   its own namespace and this repository never names it -- see the family's [ADR-0011](https://github.com/tochi-mba/LUCY-assistant/blob/main/docs/adr/0011-private-services-are-extensions.md). A registered
-   module supplies `NAMESPACE` and `SETTINGS` exactly as a built-in does and goes through
-   the same `entry.check()`, so a malformed extension fails at import too. A catalogue module that could import the store is a
-   catalogue entry that could have behaviour. This is why `SettingDef.validate` raises a
+   its own namespace and this repository never names it -- see the family's
+   [ADR-0011](https://github.com/tochi-mba/LUCY-assistant/blob/main/docs/adr/0011-private-services-are-extensions.md).
+   A registered module supplies `NAMESPACE` and `SETTINGS` exactly as a built-in does and
+   goes through the same `entry.check()`, so a malformed extension fails at import too. A
+   catalogue module that could import the store is a catalogue entry that could have
+   behaviour. This is why `SettingDef.validate` raises a
    plain `ValueError` and `domain/values.py` is what turns it into a domain error, and why
    the lookups that raise domain errors live in `domain/registry.py` rather than in the
    catalogue package.
