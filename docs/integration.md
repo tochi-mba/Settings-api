@@ -382,7 +382,8 @@ environment variable that applies to everybody on the box.
 | `spotify.confirm_timeout_seconds` | `SPOTIFY_API_CONFIRM_TIMEOUT_SECONDS` (`gt=0, le=300`) | Yes, clamped to the deployment's cap. |
 | `spotify.job_retention_hours` | `SPOTIFY_API_JOB_TTL_SECONDS` (`gt=0, le=86400`) | No. |
 | `common.default_profile` | `SPOTIFY_API_KEYRING_DEFAULT_PROFILE` | Yes. |
-| `spotify.default_device`, `shuffle_on_play`, `repeat_mode`, `allow_explicit` | — | *proposed* in spotify-api. The hub reads `default_device` as its playback default. |
+| `spotify.default_device` | — | Not by spotify-api; the hub reads it as its playback default, so the catalogue marks it *existing*. |
+| `spotify.shuffle_on_play`, `repeat_mode`, `allow_explicit` | — | *proposed* in spotify-api. |
 
 **Bounds are the owning service's, deliberately.** The catalogue caps
 `confirm_timeout_seconds` at 300 and `job_retention_hours` at 24 because spotify-api does.
@@ -410,7 +411,8 @@ once, in spotify-api.
 | `common.job_retention_hours` | `WSA_JOB_RETENTION_SECONDS` | Yes. |
 | `search.safe_search` | — | *proposed*: a request-only boolean today. |
 | `search.store_query_history` | — | *proposed*: nothing persists queries at all. |
-| `search.default_result_count`, `search.recency_days` | — | *proposed* in web-search-api. The hub reads `default_result_count` as its research default. |
+| `search.default_result_count` | — | Not by web-search-api; the hub reads it as its research default, so the catalogue marks it *existing*. |
+| `search.recency_days` | — | *proposed* in web-search-api. |
 | `common.locale` | — | Could supply the request-only `language` and `region` defaults. |
 
 **`disabled_providers` is a union.** A person can turn more providers off and can never

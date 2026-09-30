@@ -147,7 +147,7 @@ Separate from `locale` on purpose. The two usually agree and a person is entitle
 | Default | `personal` |
 | Bounds | ≤64 chars, `^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$` |
 | On unavailable | **refuse** |
-| Origin | existing — Replaces spotify-api's `keyring_default_profile` and web-search-api's `WSA_KEYRING_DEFAULT_PROFILE` (both 'personal'), and a third service's `default_profile` ('default'). keyring itself has no such notion. |
+| Origin | existing — Replaces spotify-api's `keyring_default_profile`, web-search-api's `WSA_KEYRING_DEFAULT_PROFILE` and environments-api's `ENVAPI_DEFAULT_PROFILE` (all 'personal'), and another service's `default_profile` ('default'); each reads this and keeps its own as the answer until a person chooses. keyring itself has no such notion. |
 
 A profile is a named set of credentials -- `personal` and `work` can hold different Spotify accounts -- and this says which one is meant by default. The pattern is keyring's own profile-name rule, so a value set here is one keyring will accept.
 
@@ -529,12 +529,10 @@ Null is the conservative value, and for an unusual reason: falling back to null 
 | Default | `20` |
 | Bounds | 1-100, operator-clampable |
 | On unavailable | use default |
-| Origin | existing — persona-api has `recall_default_limit` = 20, but it is dead: nothing reads it, and the live default is the literal `limit: LimitQuery = 20` on six routes. |
+| Origin | existing — persona-api's `recall_default_limit`, default 20, which its list, recall, export and event routes use when a request names no limit. |
 | Safe to fall back to | `20` |
 
 Bounded above by persona-api's own `recall_max_limit`, which is 100. Raising this means more context loaded by default and a larger prompt; lowering it means less to read and more round trips.
-
-Marked as existing rather than proposed because the knob is written down in persona-api's configuration -- but wiring it up means fixing a defect there first: the setting exists and is never read, so the documented default and the actual default are two different twenties that could drift apart without anyone noticing.
 
 #### `persona.log_values`
 
@@ -727,7 +725,7 @@ Ranking, not deletion: nothing is removed by getting old, it simply stops coming
 | Default | `on_session_end` |
 | Bounds | `never` / `on_session_end` / `continuous` |
 | On unavailable | **refuse** |
-| Origin | **proposed** — New here. The pass that tidies memory does not exist yet. |
+| Origin | **proposed** — New here. memory-api now runs an idle-merge pass on a deployment-wide clock (`MEMORY_CONSOLIDATE_IDLE_SECONDS`, `MEMORY_CONSOLIDATE_INTERVAL_SECONDS`, zero interval for off); it has no per-account choice of when, and no session-end hook. |
 
 Consolidation merges near-duplicates, writes better summaries for a subject, and decides that two things it learned separately are the same thing. `continuous` keeps the store tidiest and costs the most; `never` leaves it exactly as written.
 
@@ -2286,7 +2284,7 @@ here. That matters for ``confirm_timeout_seconds`` in particular: spotify-api ca
 300, so a catalogue that allowed 600 would let a person set a value the service they were
 configuring would refuse.
 
-> **Needs a change in the owning service first:** `default_device`, `shuffle_on_play`, `repeat_mode`, `allow_explicit`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `shuffle_on_play`, `repeat_mode`, `allow_explicit`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `spotify.default_market`
 
@@ -2373,7 +2371,7 @@ Worth knowing before relying on it: spotify-api's job store is in memory, so the
 | Default | `null` |
 | Bounds | ≤128 chars, `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`, nullable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. spotify-api plays on whichever device Spotify last used; it has no per-account default device. |
+| Origin | existing — Read by the lucy hub, which passes it as the device when a music action names none. spotify-api itself plays on whichever device Spotify last used and does not read it. |
 | Safe to fall back to | `null` |
 
 A Spotify device id, not a nickname. Null means 'whatever is already active', which is what spotify-api does today and is therefore the conservative fallback: an outage does not start blasting a kitchen speaker somebody turned off.
@@ -2450,7 +2448,7 @@ changes ordering, not sources. And ``safe_search`` exists today only as a per-re
 boolean on its request schema, with no server-side setting at all, so the three-way choice
 below needs a change there before it means anything.
 
-> **Needs a change in the owning service first:** `safe_search`, `store_query_history`, `default_result_count`, `recency_days`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `safe_search`, `store_query_history`, `recency_days`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `search.default_model`
 
@@ -2575,7 +2573,7 @@ Off is conservative and is what an outage lands on: nothing is kept.
 | Default | `8` |
 | Bounds | 1-20, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. web-search-api takes a count per request; this is the default it should use when the request omits one. |
+| Origin | existing — Read by the lucy hub, which passes it, held to 1-20, as the result count when a research call names none. web-search-api takes a count per request and does not read it. |
 | Safe to fall back to | `8` |
 
 More results are more of the web in the prompt and a larger bill. Fewer are more round trips. Twenty is the owning service's own ceiling, expressed here so a person may lower it and never raise it past what the service will serve.

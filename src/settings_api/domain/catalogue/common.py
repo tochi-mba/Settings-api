@@ -116,9 +116,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         on_unavailable=OnUnavailable.REFUSE,
         origin=Origin.EXISTING,
         origin_note=(
-            "Replaces spotify-api's `keyring_default_profile` and web-search-api's "
-            "`WSA_KEYRING_DEFAULT_PROFILE` (both 'personal'), and a third service's "
-            "`default_profile` ('default'). keyring itself has no such notion."
+            "Replaces spotify-api's `keyring_default_profile`, web-search-api's "
+            "`WSA_KEYRING_DEFAULT_PROFILE` and environments-api's `ENVAPI_DEFAULT_PROFILE` "
+            "(all 'personal'), and another service's `default_profile` ('default'); each "
+            "reads this and keeps its own as the answer until a person chooses. keyring "
+            "itself has no such notion."
         ),
         summary="Which keyring profile a service should use when the request does not name one.",
         description=(
