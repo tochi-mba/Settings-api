@@ -1,8 +1,8 @@
 # Integrating a service with settings-api
 
 How a service in this family reads one person's settings, what it stops configuring for
-itself when it does, and what it must keep. One section per service, each with the exact
-config keys it replaces and the diff at the call site.
+itself when it does, and what it must keep. One section per service, each with the keys it
+reads today and the configuration they replace.
 
 Read [catalogue.md](catalogue.md) for what each setting means, and
 [adding-a-service.md](adding-a-service.md) for a service that does not have a namespace
@@ -173,118 +173,72 @@ restarted together. Every service in this family already follows that rule for k
 
 ## 3. Per service
 
-Each section lists what the service **stops** configuring for itself, what it **keeps**,
-and what needs changing before a `proposed` setting does anything.
+Each section says which keys the service reads today, where it reads them, what still needs
+a change in that service before a setting does anything, and what stays in its own
+configuration.
 
-### 3.1 user-api — namespace `user`
+A catalogue entry marked `existing` means the owning service has that knob,
+deployment-wide. It does not by itself mean the service reads each person's value from
+here yet. The table below is the answer to that, and a setting a service does not read is
+stored and changes nothing until it does.
 
-**The easy one, and the reason the port exists.** `user-api/src/user_api/users/settings.py`
-already declares a `SettingsStore` port, and its docstring already says a settings-api
-becomes the second adapter and that "nothing above this line changes". Hold it to that.
+| Service | Granted | Reads today | Base URL and token | Where |
+| --- | --- | --- | --- | --- |
+| lucy-api (the hub) | `lucy`, `search`, `spotify` | the `lucy` namespace on every turn; `search.default_result_count`, `search.search_backend` and `spotify.default_device` as tool defaults | `LUCY_SETTINGS_API_BASE_URL`, `LUCY_SETTINGS_API_TOKEN` | `src/lucy_api/core/container.py` |
+| keyring-api | `keyring` | `session_ttl_days`, `session_absolute_ttl_days`, `max_sessions` | `KEYRING_SETTINGS_API_BASE_URL`, `KEYRING_SETTINGS_API_TOKEN` | `src/keyring_api/core/preferences.py` |
+| user-api | `user` | `max_pinned`, `search_default_limit` | `USER_API_SETTINGS_API_BASE_URL`, `USER_API_SETTINGS_API_TOKEN` | `src/user_api/core/preferences.py` |
+| persona-api | `persona` | `recall_default_limit`, `max_pinned_fields`, `max_pinned_notes` | `PERSONA_SETTINGS_API_BASE_URL`, `PERSONA_SETTINGS_API_TOKEN` | `src/persona_api/core/preferences.py` |
+| memory-api | `memory` | nothing yet | — | — |
+| spotify-api | `spotify` | `default_market`, `max_batch_size`, `confirm_timeout_seconds`, `common.default_profile` | `SPOTIFY_API_SETTINGS_API_BASE_URL`, `SPOTIFY_API_SETTINGS_API_TOKEN` | `src/spotify_api/preferences.py` |
+| web-search-api | `search` | `default_model`, `search_backend`, `disabled_providers`, `max_content_chars`, `common.default_profile`, `common.job_retention_hours` | `WSA_SETTINGS_API_BASE_URL`, `WSA_SETTINGS_API_TOKEN` | `app/services/preferences.py` |
+| environments-api | `environments` | `idle_environment_hours`, `idle_shell_minutes`, `max_environments_per_profile`, `common.default_profile` | `ENVAPI_SETTINGS_API_BASE_URL`, `ENVAPI_SETTINGS_API_TOKEN` | `app/preferences.py` |
 
-| Setting | Replaces | Notes |
-| --- | --- | --- |
-| `user.erasure_mode` | `ErasureMode` behind the port | Already per-account. |
-| `user.grace_days` | `grace_days`, `USER_API_DEFAULT_GRACE_DAYS` | |
-| `user.log_values` | `log_values` behind the port | |
-| `user.max_pinned` | `USER_API_MAX_PINNED` | Person may lower, never raise. |
-| `user.search_default_limit` | `USER_API_SEARCH_DEFAULT_LIMIT` | Bounded by its own `search_max_limit`. |
-| `common.default_write_scope`¹ | — | ¹ lives in `user.default_write_scope`; proposed. |
+The six sibling services share one shape, and each says so in the module named above:
 
-**Stays in user-api:** `max_entries_per_account`, `max_fields_per_account`,
-`max_value_bytes`, `max_value_depth`, `max_note_chars`, `max_events`, `search_max_limit`,
-`purge_interval_seconds`, `allowed_scopes`, `audience_prefix`, every keyring URL, the
-database path, host and port. These are capacity and deployment decisions: a person has no
-basis on which to choose `max_value_bytes`, and `allowed_scopes` is a security boundary.
+- **Nothing is read at startup.** With no base URL configured, every person gets the
+  deployment's configuration, exactly as before the service read anybody's settings. That
+  is how an integration ships dark.
+- **A person may narrow a ceiling and never raise it.** A value from here is clamped to
+  the deployment's own cap.
+- **An outage degrades per setting.** `use_default` keys fall back to the configuration, or
+  to settings-api's own defaults once the client has seen them. `refuse` keys, such as
+  `common.default_profile` and `search.disabled_providers`, fail only the operation that
+  needs them.
+- **A refusal is not an outage.** A 401 or 403 from settings-api means the service is
+  misconfigured, so the request fails rather than being served defaults that would hide
+  it.
 
-**The wiring:**
+The hub is the exception to the last rule for the two namespaces it borrows: a refused
+`search` or `spotify` read is logged and the turn goes on without those defaults.
 
-```python
-# src/user_api/remote/http_settings.py  (new package -- see the contract note below)
-class HttpSettingsStore:
-    """The second adapter behind SettingsStore. Nothing above the port changes."""
+### 3.1 lucy-api (the hub) — namespace `lucy`
 
-    async def get(self, account_id: str, *, default_grace_days: int) -> UserSettings:
-        resolved = await self._client.resolve("user", user_token=self._token_for(account_id))
-        return UserSettings(
-            erasure_mode=ErasureMode(resolved["erasure_mode"]),
-            grace_days=int(resolved["grace_days"]),
-            log_values=bool(resolved["log_values"]),
-        )
-```
+The hub reads the `lucy` namespace once per turn, with the session's profile, and clamps it
+into its turn policy: the model knobs, the context window, the turn and plan limits, helper
+depth and concurrency, permissions, memory-write policy, session defaults and the
+prompt-feed toggles. Every `lucy` entry is `existing`, and its origin note in
+[catalogue.md](catalogue.md) says what the hub does with it.
 
-Then one line in `core/container.py`:
+It also reads two namespaces it does not own: `search` for the person's backend and result
+count, and `spotify` for their default playback device. That is why its grant lists three
+namespaces. A missing grant for either answers 403, which the hub logs and otherwise
+ignores, because losing a default result count is not worth losing the answer.
 
-```python
--        user_settings = SqlSettingsStore(database=database)
-+        user_settings = (
-+            CachingSettingsStore(
-+                remote=HttpSettingsStore(client=settings_client),
-+                local=SqlSettingsStore(database=database),
-+            )
-+            if settings.settings_base_url
-+            else SqlSettingsStore(database=database)
-+        )
-```
-
-`USER_API_SETTINGS_BASE_URL` empty (the default) keeps `SqlSettingsStore` alone, so this
-**ships dark** and is turned on per deployment.
-
-**The contract will block you, on purpose.** user-api's import-linter contract "Keyring is
-spoken to from one package only" forbids `httpx` to `user_api.users`, so an HTTP adapter
-cannot live there. user-api's AGENTS.md invariant 3 says to change the enforcement
-deliberately and say why in the commit message rather than work around it. Do that: rename
-the contract to "Outbound HTTP lives in one package per remote", add `user_api.remote` as
-the one other permitted package, and put the adapter there. The commit body explains that
-the service now has two remotes, not one.
-
-**Do not change** `SettingsStore`, `UserSettings`, `ErasureMode`, `users/erasure.py`, or any
-route under `/v1/user`. If the port turns out to need changing, that is a finding worth
-reporting, not a change to make quietly.
-
-**Why user-api is not wired yet: the sweeper has no token.** The adapter sketch above hides
-a problem inside `self._token_for(account_id)`. settings-api answers only when a person's
-token is presented, and user-api's erasure sweeper (`Erasure.sweep_once`) reads
-`erasure_mode` and `grace_days` for every account with forgotten entries from a background
-task, with no request and so no token. A local copy refreshed on each request does not fix
-it: a person who switches to `tombstone` directly in settings-api would not be seen by the
-sweeper until they next called user-api, and in the meantime the sweeper would destroy
-entries they had just asked to keep.
-
-There are two honest ways out, and each changes the port, so choosing is a decision rather
-than wiring:
-
-1. **Decide an entry's fate when it is forgotten.** The forgetting request carries a token,
-   so the purge deadline can be resolved then and stored on the entry, and the sweeper stops
-   reading settings. The cost is that switching to `tombstone` later no longer rescues
-   entries already forgotten.
-2. **Keep `erasure_mode` and `grace_days` authoritative in user-api**, and move only the
-   settings read on the request path (`log_values`, `max_pinned`, `search_default_limit`)
-   to settings-api.
-
-Until one is chosen, user-api keeps `SqlSettingsStore`, and nothing here is half-wired.
-
-Also worth having: a one-shot backfill in `scripts/` pushing existing `user_settings` rows
-into settings-api, idempotent, **skipping rows equal to the resolved default** — because
-storage here is sparse, and a backfill that wrote every row would pin today's defaults for
-everybody for ever.
-
-> **`user.erasure_mode` is deliberately not owner-writable.** Marking it so would break
-> user-api's existing `PUT /v1/user/settings`, whose `operation_id` is public API and which
-> MCP clients have tools bound to. See [ADR-0004](adr/0004-services-may-write-within-their-own-namespace.md).
+Its audience prefix is `lucy-api`, its name in `KEYRING_SERVICE_TOKENS`. The hub's own
+[operations guide](https://github.com/tochi-mba/LUCY-assistant/blob/main/docs/operations.md)
+has its configuration.
 
 ### 3.2 keyring-api — namespace `keyring`
 
-**The subtle one. Read this section before wiring anything.**
-
-| Setting | Replaces |
-| --- | --- |
-| `keyring.session_ttl_days` | `KEYRING_SESSION_TTL_SECONDS` |
-| `keyring.session_absolute_ttl_days` | `KEYRING_SESSION_ABSOLUTE_TTL_SECONDS` |
-| `keyring.max_sessions` | `KEYRING_MAX_SESSIONS_PER_ACCOUNT` |
-| `keyring.email_notifications` | *proposed* — keyring has an email backend and no per-account switch |
-| `keyring.notify_on_new_session` | *proposed* |
-| `keyring.require_reauth_for_credential_changes` | *proposed* |
+| Setting | Replaces | Read today? |
+| --- | --- | --- |
+| `keyring.session_ttl_days` | `KEYRING_SESSION_TTL_SECONDS` | Yes. |
+| `keyring.session_absolute_ttl_days` | `KEYRING_SESSION_ABSOLUTE_TTL_SECONDS` | Yes. |
+| `keyring.max_sessions` | `KEYRING_MAX_SESSIONS_PER_ACCOUNT` | Yes. |
+| `keyring.email_notifications` | — | *proposed*: keyring has an email backend and no per-account switch. |
+| `keyring.notify_on_new_session` | — | *proposed* |
+| `keyring.notify_on_credential_change` | — | *proposed*: keyring audits a credential write and sends nothing. |
+| `keyring.require_reauth_for_credential_changes` | — | *proposed* |
 
 **Stays in keyring:** every credential and secret (`master_key`, `admin_token`,
 `service_tokens`, `signing_key_path`, the OAuth client secrets), `lockout_threshold` and
@@ -304,14 +258,17 @@ it has minted any token for that person, and the internal endpoint requires a us
 The way through: keyring is the issuer. Once the password check has succeeded it knows who
 the person is, so it mints a short-lived token with `sub = <account>` and
 `aud = keyring`, presents that as the user token alongside its own service token, and
-reads `keyring.session_ttl_days`. settings-api verifies it against the JWKS it already
-holds. Nothing circular happens: settings-api never calls keyring, it only verifies
-signatures against a public document it caches.
+reads the namespace. settings-api verifies it against the JWKS it already holds. Nothing
+circular happens: settings-api never calls keyring, it only verifies signatures against a
+public document it caches. That is why keyring's grant uses the prefix `keyring`.
 
-**But note what this means: settings-api would be on the critical path of every login.**
-That is why `keyring.session_ttl_days` and `max_sessions` are `use_default` rather than
-`refuse`, and it is the one place in this catalogue where the conservative value is *not*
-the default. A person who chose a one-day idle timeout gets fourteen days during an outage.
+The values are stamped on the session when it is created. A later change applies to
+sessions created afterwards, rather than silently lengthening or shortening a live one.
+
+**But note what this means: settings-api is on the critical path of every login.** That is
+why `keyring.session_ttl_days` and `max_sessions` are `use_default` rather than `refuse`,
+and it is the one place in this catalogue where the conservative value is *not* the
+default. A person who chose a one-day idle timeout gets fourteen days during an outage.
 The alternative — refusing — means nobody in the family can log in while settings-api is
 down, which is a far larger failure than a bounded, temporary lengthening of one timeout.
 The reasoning is written into the catalogue entry itself so it is read by whoever changes
@@ -327,149 +284,145 @@ left open.
 > with no fallback, and there is no `is_default` column anywhere. `common.default_profile`
 > is read by the services that *call* keyring, which then pass it as that path segment.
 
-### 3.3 persona-api — namespace `persona`
+### 3.3 user-api — namespace `user`
 
-**The most work, because persona-api has no per-account settings at all.** Its `Settings`
-is one process-wide pydantic-settings model built once at startup and frozen into its
-adapters as plain integers; no `account_id` ever reaches a config lookup, there is no
-settings table, and there is no request-scoped seam where a per-account override could be
-applied.
-
-| Setting | Replaces | Ready? |
+| Setting | Replaces | Read today? |
 | --- | --- | --- |
-| `persona.recall_default_limit` | `PERSONA_RECALL_DEFAULT_LIMIT` | See the defect below. |
+| `user.max_pinned` | `USER_API_MAX_PINNED` | Yes. A person may lower it, never raise it. |
+| `user.search_default_limit` | `USER_API_SEARCH_DEFAULT_LIMIT` | Yes, bounded by user-api's own `search_max_limit`. |
+| `user.erasure_mode` | `ErasureMode` behind user-api's `SettingsStore` port | No — see below. |
+| `user.grace_days` | `grace_days`, `USER_API_DEFAULT_GRACE_DAYS` | No — see below. |
+| `user.log_values` | `log_values` behind the same port | No — see below. |
+| `user.default_write_scope` | — | *proposed*: user-api has no per-account default scope. |
+
+**Why erasure is not read from here yet: the sweeper has no token.** settings-api answers
+only when a person's token is presented, and user-api's erasure sweeper reads
+`erasure_mode` and `grace_days` for every account with forgotten entries from a background
+task, with no request and so no token. A local copy refreshed on each request does not fix
+it: a person who switches to `tombstone` directly in settings-api would not be seen by the
+sweeper until they next called user-api, and in the meantime the sweeper would destroy
+entries they had just asked to keep. `log_values` is written by user-api's own
+`PUT /v1/user/settings` and read by its event log from the same row, so it stays with them.
+
+There are two honest ways out, and each changes user-api's `SettingsStore` port, so
+choosing is a decision rather than wiring:
+
+1. **Decide an entry's fate when it is forgotten.** The forgetting request carries a token,
+   so the purge deadline can be resolved then and stored on the entry, and the sweeper stops
+   reading settings. The cost is that switching to `tombstone` later no longer rescues
+   entries already forgotten.
+2. **Keep `erasure_mode` and `grace_days` authoritative in user-api** for good, and retire
+   the two entries here.
+
+Until one is chosen, those three stay in user-api's SQL store, and setting them here does
+not change what user-api does.
+
+Also worth having when that lands: a one-shot backfill pushing existing `user_settings`
+rows into settings-api, idempotent, **skipping rows equal to the resolved default** —
+because storage here is sparse, and a backfill that wrote every row would pin today's
+defaults for everybody for ever.
+
+**Stays in user-api:** `max_entries_per_account`, `max_fields_per_account`,
+`max_value_bytes`, `max_value_depth`, `max_note_chars`, `max_events`, `search_max_limit`,
+`purge_interval_seconds`, `allowed_scopes`, `audience_prefix`, every keyring URL, the
+database path, host and port. These are capacity and deployment decisions: a person has no
+basis on which to choose `max_value_bytes`, and `allowed_scopes` is a security boundary.
+
+> **`user.erasure_mode` is deliberately not owner-writable.** Marking it so would stop
+> user-api's existing `PUT /v1/user/settings`, whose `operation_id` is public API and which
+> MCP clients have tools bound to, from ever writing through to here. See
+> [ADR-0004](adr/0004-services-may-write-within-their-own-namespace.md).
+
+### 3.4 persona-api — namespace `persona`
+
+| Setting | Replaces | Read today? |
+| --- | --- | --- |
+| `persona.recall_default_limit` | `PERSONA_RECALL_DEFAULT_LIMIT` | Yes. |
 | `persona.max_pinned_fields` | `PERSONA_MAX_PINNED_FIELDS` | Yes. |
 | `persona.max_pinned_notes` | `PERSONA_MAX_PINNED_NOTES` | Yes. |
 | `persona.default_persona` | — | *proposed*: no default-selection rule exists. |
 | `persona.log_values` | — | *proposed*: the event log records no old values. |
-| `persona.erasure_mode` | — | *proposed*: **no erasure mechanism at all**. |
+| `persona.erasure_mode` | — | *proposed*: **no grace period or sweeper**. |
 | `persona.grace_days` | — | *proposed*: same. |
 
-**Defect to fix first:** `recall_default_limit` exists in persona-api's config and **nothing
-reads it**. The live default is the literal `limit: LimitQuery = 20` on six routes. So the
-documented default and the actual default are two different twenties that could drift apart
-without anybody noticing. Fix that before wiring the setting up, or wiring it up will
-appear to do nothing.
-
 **`erasure_mode` and `grace_days` propose a mechanism rather than configure one.**
-persona-api's forgetting is a permanent tombstone with no expiry — its own operations
-documentation says so, and `core/container.py` states outright that "rate-limit records
-expire; nothing here does". Adopting these means persona-api gains a sweeper and a grace
-path. They are spelled exactly as user-api's so a person who has answered "what does delete
-mean for my data" once does not answer a differently-shaped version of it.
+persona-api's forgetting is a permanent tombstone with no expiry. Adopting these means
+persona-api gains a sweeper and a grace path. They are spelled exactly as user-api's so a
+person who has answered "what does delete mean for my data" once does not answer a
+differently-shaped version of it.
 
 **Stays in persona-api:** `max_personas_per_account`, `max_fields_per_persona`,
 `max_notes_per_persona`, `max_field_value_bytes`, `max_value_depth`,
 `max_value_list_items`, `max_value_object_keys`, `max_note_body_chars`, `max_events`,
 `recall_max_limit`, `audience`, and every keyring and storage setting.
 
-### 3.4 A service this repository does not name — its own namespace
+### 3.5 memory-api — namespace `memory`
 
-Not every member of the family is public, and a public repository never names a private
-one: no module, no grant in a sample, no helpful example in a docstring. See
-the family's [ADR-0011](https://github.com/tochi-mba/LUCY-assistant/blob/main/docs/adr/0011-private-services-are-extensions.md).
+memory-api does not read settings-api yet. It has no settings client, and its own
+configuration answers for everybody: `MEMORY_FORGET_GRACE_SECONDS` (30 days) for how long a
+forgotten memory can be restored, a compiled-in 30-day recency half-life, and a 16,000
+character default for the always-in-context block. The `existing` entries name those
+knobs; the `proposed` ones need memory-api to take a per-person value first. The grant
+exists in the family's generated configuration so that wiring it up is a change in
+memory-api alone.
 
-Such a service brings its own namespace with it. It ships a small package that registers a
-module under the entry-point group `settings_api.namespaces`:
+Four entries are `refuse` — `retrieval_trust_floor`, `write_importance_floor`,
+`consolidation` and `erasure_grace_days` — and each entry's description in
+[catalogue.md](catalogue.md) says why its default is not safe to land on during an outage.
 
-```toml
-# the private service's own pyproject.toml
-[project.entry-points."settings_api.namespaces"]
-its-namespace = "its_package.settings_namespace"
-```
-
-The module supplies `NAMESPACE` and `SETTINGS` exactly as a built-in namespace module
-does, and `_assemble()` puts it through the identical check — so a malformed extension
-fails at import, in the process that has it, rather than at the first request for that
-namespace. Two modules claiming one namespace is refused, which is what stops an extension
-quietly replacing a public table.
-
-Everything else is unchanged: the deployment lists the namespace in
-`SETTINGS_API_ALLOWED_NAMESPACES` and grants it in `SETTINGS_API_SERVICES`, both of which
-are a deployment's own configuration rather than anything checked in here.
-
-An entry point rather than a configuration file because a namespace is code — defaults,
-bounds, validation and the prose a person reads to decide. A file would mean either
-shipping a schema language for settings definitions or handing this process arbitrary
-Python at request time.
-
-### 3.5 spotify-api — namespace `spotify`
+### 3.6 spotify-api — namespace `spotify`
 
 The motivating example. `default_market` is a fact about a person deployed as an
 environment variable that applies to everybody on the box.
 
-| Setting | Replaces |
-| --- | --- |
-| `spotify.default_market` | `DEFAULT_MARKET` |
-| `spotify.max_batch_size` | `MAX_BATCH_SIZE` (`ge=1, le=200`) |
-| `spotify.confirm_timeout_seconds` | `CONFIRM_TIMEOUT_SECONDS` (`gt=0, le=300`) |
-| `spotify.job_retention_hours` | `JOB_TTL_SECONDS` (`gt=0, le=86400`) |
-| `common.default_profile` | `KEYRING_DEFAULT_PROFILE` |
+| Setting | Replaces | Read today? |
+| --- | --- | --- |
+| `spotify.default_market` | `SPOTIFY_API_DEFAULT_MARKET` | Yes. |
+| `spotify.max_batch_size` | `SPOTIFY_API_MAX_BATCH_SIZE` (`ge=1, le=200`) | Yes, clamped to the deployment's cap. |
+| `spotify.confirm_timeout_seconds` | `SPOTIFY_API_CONFIRM_TIMEOUT_SECONDS` (`gt=0, le=300`) | Yes, clamped to the deployment's cap. |
+| `spotify.job_retention_hours` | `SPOTIFY_API_JOB_TTL_SECONDS` (`gt=0, le=86400`) | No. |
+| `common.default_profile` | `SPOTIFY_API_KEYRING_DEFAULT_PROFILE` | Yes. |
+| `spotify.default_device`, `shuffle_on_play`, `repeat_mode`, `allow_explicit` | — | *proposed* in spotify-api. The hub reads `default_device` as its playback default. |
 
 **Bounds are the owning service's, deliberately.** The catalogue caps
 `confirm_timeout_seconds` at 300 and `job_retention_hours` at 24 because spotify-api does.
 A catalogue that allowed more would let a person set a value the service they were
-configuring refuses, and the only sign would be the request failing later.
+configuring refuses, and the only sign would be the request failing later. spotify-api
+uses a float for the timeout; the catalogue stores an integer, and the conversion happens
+once, in spotify-api.
 
-**Stays in spotify-api:** `keyring_base_url`, `keyring_service_token`,
-`keyring_timeout_seconds`, `credential_cache_skew_seconds`,
-`credential_cache_default_ttl_seconds`, `spotify_api_base_url`,
-`request_timeout_seconds`, `max_retries`, `retry_backoff_base_seconds`,
-`max_concurrency`, `confirm_poll_interval_seconds`, `environment`, `log_level`,
-`log_format`.
+**Stays in spotify-api:** `keyring_base_url`, `keyring_service_token`, `keyring_issuer`,
+`keyring_audience`, `keyring_timeout_seconds`, `jwks_cache_seconds`,
+`jwks_min_refetch_seconds`, `credential_cache_skew_seconds`,
+`credential_cache_default_ttl_seconds`, `spotify_base_url`, `request_timeout_seconds`,
+`max_retries`, `retry_backoff_base_seconds`, `max_concurrency`,
+`confirm_poll_interval_seconds`, `environment`, `log_level`, `log_format`.
 
-**Three mechanical notes:**
+### 3.7 web-search-api — namespace `search`
 
-- spotify-api has **no env prefix**, so its settings-api configuration is
-  `SETTINGS_API_BASE_URL` and `SETTINGS_API_TOKEN` as bare names.
-- Its `Settings` is `frozen=True` behind an `lru_cache(maxsize=1)` singleton, and nothing
-  holds a reference to it — every collaborator is built from primitives at startup. A
-  per-person value therefore has to be threaded through `api/dependencies.py` to the call
-  site; it cannot be read out of `get_settings()`.
-- **Its README is stale.** The Configuration table lists `SPOTIFY_CLIENT_ID`,
-  `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_ACCOUNTS_BASE_URL` and `TOKEN_EXPIRY_SKEW_SECONDS`, none
-  of which exist any more — the service moved to keyring-brokered credentials. Build against
-  `config.py` and `.env.example`, not the README.
-
-### 3.6 web-search-api — namespace `search`
-
-| Setting | Replaces | Ready? |
+| Setting | Replaces | Read today? |
 | --- | --- | --- |
 | `search.default_model` | `WSA_DEFAULT_MODEL` | Yes. |
-| `search.search_backend` | `WSA_SEARCH_BACKEND` | Yes — but see below. |
-| `search.disabled_providers` | `WSA_DISABLED_PROVIDERS` | Needs per-caller filtering. |
-| `search.max_content_chars` | `WSA_MAX_CONTENT_CHARS` | Yes. |
-| `search.safe_search` | — | *proposed*: request-only boolean today. |
-| `search.store_query_history` | — | *proposed*: nothing persists queries at all. |
+| `search.search_backend` | `WSA_SEARCH_BACKEND` | Yes — a preference, see below. |
+| `search.disabled_providers` | `WSA_DISABLED_PROVIDERS` | Yes, as a union with the deployment's list. |
+| `search.max_content_chars` | `WSA_MAX_CONTENT_CHARS` | Yes, clamped to the deployment's cap. |
 | `common.default_profile` | `WSA_KEYRING_DEFAULT_PROFILE` | Yes. |
 | `common.job_retention_hours` | `WSA_JOB_RETENTION_SECONDS` | Yes. |
-| `common.locale` | — | Can supply the request-only `language`/`region` defaults. |
+| `search.safe_search` | — | *proposed*: a request-only boolean today. |
+| `search.store_query_history` | — | *proposed*: nothing persists queries at all. |
+| `search.default_result_count`, `search.recency_days` | — | *proposed* in web-search-api. The hub reads `default_result_count` as its research default. |
+| `common.locale` | — | Could supply the request-only `language` and `region` defaults. |
 
-**The structural obstacle, and it is the real work here.** `disabled_providers` is consumed
-exactly once, in `bootstrap.build_llm_providers()` during lifespan startup, and the provider
-list is then frozen for the process. Whether a provider is *usable* is already per-caller
-(decided by probing keyring), but whether it is *constructed* is global. A per-account "turn
-off provider X" needs the registry to filter per caller at catalogue time, not at process
-start. Until that lands, `search.disabled_providers` cannot be honoured — and it is the one
-`refuse` setting in the namespace, so honouring it half-way would be worse than not at all.
+**`disabled_providers` is a union.** A person can turn more providers off and can never
+re-enable one the operator turned off. It is the one `refuse` setting in the namespace:
+during an outage it stays unknown and fails only a search that would need it, because
+guessing the empty list would send a query to a provider this person refused.
 
 **`search_backend` is a preference, not a restriction.** web-search-api's router tries the
 named backend first and fails over through the rest, so a per-account value changes ordering
 and not sources. If somebody wants "never scrape Google", that is not expressible in the
 owning service today and it should not be faked here: a setting that reads as a guarantee
 and behaves as a hint is worse than no setting. The catalogue entry says so.
-
-**Three defects found while surveying, worth fixing while you are in there:**
-
-- `enabled_providers` is **dead**: declared in `app/config.py` and read nowhere. Its comment
-  is also stale — providers no longer take API keys from the environment at all.
-- `max_concurrency_per_host` is **dead**: declared and never read. Per-host throttling is
-  not implemented.
-- `SerperSearchBackend.for_caller()` is **never called** anywhere in `app/`. The single
-  process-wide instance is built with `caller=None`, so `_auth()` always short-circuits,
-  `is_configured()` always returns `False`, and the Serper backend is silently skipped on
-  every request. Effectively only `google` and `searxng` can ever serve a query — which is
-  why `search.search_backend` offers exactly those two.
 
 **Stays in web-search-api:** `respect_robots`, `allow_private_networks`, `api_keys`,
 `user_agent`, `max_response_bytes`, `max_redirects`, `request_timeout_seconds`,
@@ -479,26 +432,23 @@ and behaves as a hint is worse than no setting. The catalogue entry says so.
 first two are not negotiable: **a person cannot turn off SSRF protection or robots
 compliance**, and there is no setting in this catalogue that would let them.
 
-**One more mechanical note:** web-search-api's settings model uses `extra="ignore"`, so a
-misspelled `WSA_*` variable is silently discarded with no error. Every other service in this
-family treats that as a startup error. Worth fixing in the same pass.
+### 3.8 environments-api — namespace `environments`
 
-### 3.7 environments-api — namespace `environments`
-
-| Setting | Replaces | Ready? |
+| Setting | Replaces | Read today? |
 | --- | --- | --- |
 | `environments.idle_environment_hours` | `ENVAPI_ENVIRONMENT_IDLE_TTL_SECONDS` | Yes. |
 | `environments.idle_shell_minutes` | `ENVAPI_SHELL_IDLE_TTL_SECONDS` | Yes. |
 | `environments.max_environments_per_profile` | `ENVAPI_MAX_ENVIRONMENTS_PER_PROFILE` | Yes, as the lower of the operator cap and the setting. |
-| `environments.default_shell` | — | *proposed*: one deployment-wide `ENVAPI_SHELL_BINARY` today. |
 | `common.default_profile` | `ENVAPI_DEFAULT_PROFILE` | Yes. |
+| `environments.default_shell` | — | *proposed*: one deployment-wide `ENVAPI_SHELL_BINARY` today. |
+| `environments.persist_history`, `command_timeout_seconds`, `max_output_bytes` | — | *proposed* in environments-api. |
 
-**Resolve when the environment is created, not when it is reaped.** The reaper runs with no
-request in hand, so it has no user token to present to settings-api. Resolve the
-`environments` namespace in the request that creates the environment, store the resulting
-lifetimes and cap on the environment's record, and let the reaper read the record. A later
-change to the setting then applies to environments created afterwards, which is the same
-rule every service in the family follows for job retention.
+**Resolved when the environment is created, not when it is reaped.** The reaper runs with
+no request in hand, so it has no user token to present to settings-api. environments-api
+resolves the namespace in the request that creates the environment, stamps the lifetimes
+on the environment's record, and the reaper reads the record. A later change to the
+setting applies to environments created afterwards, which is the same rule keyring follows
+for sessions.
 
 **The grant uses the name environments-api already calls keyring with.** One user token
 travels to both hubs, so the audience prefix here must equal the service's name in
@@ -511,6 +461,30 @@ every `*_bytes` quota, `max_cpu_seconds`, `reaper_interval_seconds`,
 `shell_close_grace_seconds`, `root`, `operator_accounts`, `api_keys`, and everything
 keyring. The first two are not negotiable, for the same reason SSRF protection is not in
 `search`: **a person cannot choose the machine's exposure.**
+
+### 3.9 A service this repository does not name — its own namespace
+
+Not every member of the family is public, and a public repository never names a private
+one: no module, no grant in a sample, no helpful example in a docstring. See
+the family's [ADR-0011](https://github.com/tochi-mba/LUCY-assistant/blob/main/docs/adr/0011-private-services-are-extensions.md).
+
+Such a service brings its own namespace with it, as an installed package that registers a
+module under the entry-point group `settings_api.namespaces`.
+[adding-a-service.md](adding-a-service.md#if-the-service-is-not-public) has the steps.
+The module supplies `NAMESPACE` and `SETTINGS` exactly as a built-in namespace module
+does, and `_assemble()` puts it through the identical check — so a malformed extension
+fails at import, in the process that has it, rather than at the first request for that
+namespace. Two modules claiming one namespace is refused, which is what stops an extension
+quietly replacing a public table.
+
+Everything else is unchanged: the deployment grants the namespace in
+`SETTINGS_API_SERVICES`, and lists it in `SETTINGS_API_ALLOWED_NAMESPACES` if that has been
+narrowed. Both are a deployment's own configuration rather than anything checked in here.
+
+An entry point rather than a configuration file because a namespace is code — defaults,
+bounds, validation and the prose a person reads to decide. A file would mean either
+shipping a schema language for settings definitions or handing this process arbitrary
+Python at request time.
 
 ---
 
@@ -573,9 +547,6 @@ actually exercise rather than a defensive statement about a collision that could
 
 ### 4.5 Known limitations
 
-- **`search.disabled_providers` cannot be honoured yet** without the per-caller provider
-  filtering described in §3.6, and it is a `refuse` setting — so a deployment that turns it
-  on before that change would be refusing searches for a restriction it cannot apply.
 - **Cross-setting validation is the owning service's job.** A catalogue entry is checked on
   its own, so `keyring.session_absolute_ttl_days` being below `keyring.session_ttl_days` is
   caught by keyring, not here. There is no mechanism for a rule that spans two settings, and
