@@ -26,8 +26,10 @@ All notable changes to settings-api are recorded here. The format follows
   [ADR-0008](https://github.com/tochi-mba/LUCY-assistant/blob/main/docs/adr/0008-python-3-12-floor.md):
   `weftai`, which the assistant hub depends on, requires 3.12 and uses PEP 695 type
   parameters that do not parse on 3.11. Generics here moved to PEP 695 syntax with it.
-- CI inherits `FAMILY_GITHUB_TOKEN`; image builds accept a BuildKit `github_token`
-  secret so tagged client packages can be fetched from private family repositories.
+- CI calls the family's reusable workflow and fetches private family packages through its
+  OIDC token broker (`id-token: write`), with no long-lived token in this repository; image
+  builds accept a BuildKit `github_token` secret so tagged client packages can be fetched
+  from private family repositories.
   `make docker` uses the signed-in GitHub account without saving its token in an image.
 - Token verification uses `keyring-client`, the verifier shared by the whole family,
   instead of this service's own copy of the rules. The rules themselves are unchanged:
