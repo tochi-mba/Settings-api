@@ -28,19 +28,20 @@ default_market: str | None = Field(
 Which country's catalogue a person's track searches resolve against is a fact about the
 person, deployed as if it were a fact about a machine. On a box serving one person that is
 invisible. On a box serving two people in different countries it is wrong for one of them,
-and the only fix available today is a second deployment.
+and without this service the only fix is a second deployment.
 
-There are forty-one more like it. Today:
+It was not the only one. Before this service:
 
-- four services each carry their own "which keyring profile do you mean when I don't say",
-  spelled three different ways, with two different defaults;
-- persona-api has no per-account settings at all;
-- user-api has three, behind a port that was built on day one to take a second adapter;
-- and there is nowhere a person can look to answer *"what has this system been told about
-  how to treat me"*, and nowhere to change it once.
+- four services each carried their own "which keyring profile do you mean when I don't
+  say", spelled three different ways, with two different defaults;
+- persona-api had no per-account settings at all;
+- user-api had three, behind a port that was built on day one to take a second adapter;
+- and there was nowhere a person could look to answer *"what has this system been told
+  about how to treat me"*, and nowhere to change it once.
 
-This is that place. **130 settings across 9 namespaces** -- see
-[docs/catalogue.md](docs/catalogue.md).
+This is that place. Every setting it holds, with its type, bounds, default and outage
+rule, is in [docs/catalogue.md](docs/catalogue.md), which is generated from the code and
+states the current count.
 
 ## The shape of it
 
@@ -93,9 +94,9 @@ rather than guess -- `search.disabled_providers` defaults to "every provider is 
 so falling back to it would send somebody's query to exactly the provider they refused.
 [ADR-0006](docs/adr/0006-on-unavailable-is-declared-per-setting.md).
 
-**The catalogue is a table, and it stays reviewable.** Forty-two frozen dataclasses in
-seven modules, restricted by an architectural contract to importing nothing but the shape
-of a setting. A catalogue module that could import the store is a catalogue entry that
+**The catalogue is a table, and it stays reviewable.** One frozen dataclass per setting
+and one module per namespace (`lucy` is a package of modules, because it outgrew one file),
+restricted by an architectural contract to importing nothing but the shape of a setting. A catalogue module that could import the store is a catalogue entry that
 could have behaviour. [ADR-0003](docs/adr/0003-the-catalogue-is-code-not-data-in-the-database.md).
 
 **There is no administrative surface.** No operator can read somebody's settings over HTTP,

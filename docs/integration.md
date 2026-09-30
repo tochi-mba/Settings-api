@@ -521,9 +521,10 @@ we do not support properly".
 
 ### 4.1 Covered
 
-130 settings across 9 namespaces, listed in [catalogue.md](catalogue.md). Existing
-entries are knobs the owning service already has, deployment-wide; proposed entries say
-in the generated documentation exactly what change the owning service needs first.
+Every setting in [catalogue.md](catalogue.md), which is generated from the code and
+states the current count. Existing entries are knobs the owning service already has,
+deployment-wide; proposed entries say in the generated documentation exactly what change
+the owning service needs first.
 
 ### 4.2 Correctly left in the owning service
 

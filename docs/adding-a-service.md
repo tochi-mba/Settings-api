@@ -184,7 +184,7 @@ match, so forgetting is a failing build rather than a stale page.
 > value helpers, and certainly not a store. The catalogue is a **table**, and a table is
 > something a reviewer can check against what the services actually do. A catalogue module
 > that could import the store is a catalogue entry that could have behaviour, and then
-> forty-two settings stop being reviewable and become code.
+> the settings stop being reviewable and become code.
 
 ---
 
