@@ -8,6 +8,8 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Added
 
+- `LICENSE`: the MIT text the rest of the family ships. `pyproject.toml` and the README
+  already said MIT; the repository carried no licence file to say it with.
 - **settings-client 0.2.0.** `resolve()` takes `profile`, and the cache is keyed by token, namespace *and* profile, so two profiles of one person never share a resolved document. A consumer pins the tag `settings-client-v0.2.0`; the 0.1.0 signature is not kept, because a client that accepts a call it cannot honour answers with the wrong profile's values, and that is worse than a `TypeError`.
 - The **`environments`** namespace: `idle_environment_hours`, `idle_shell_minutes`,
   `max_environments_per_profile` and `default_shell`. environments-api was the one
