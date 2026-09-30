@@ -186,12 +186,15 @@ SETTINGS: tuple[SettingDef, ...] = (
         value_type=SettingType.INT,
         default=1_048_576,
         minimum=4_096,
-        maximum=16_777_216,
+        maximum=8_388_608,
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(1_048_576,),
         origin=Origin.PROPOSED,
-        origin_note="New here. environments-api caps captured stdout per command.",
+        origin_note=(
+            "New here. environments-api takes `max_output_bytes` per exec request, default "
+            "256 KiB and at most 8 MiB, and has no per-person default."
+        ),
         summary="How much of a command's output may be captured and handed back.",
         description=(
             "A ceiling on what Lucy will ever put in a tool result, not on what the process "
