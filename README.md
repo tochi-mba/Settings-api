@@ -75,11 +75,15 @@ endpoint.
 
 ## Five properties this service is built around
 
-**One settings set per account, not per profile.** The primary key is
-`(account_id, namespace, key)` -- there is no profile column, so a per-profile value is
-unrepresentable rather than discouraged. No route accepts a profile, and every request body
-forbids extra fields, so `{"profile": "work"}` is a 422 rather than a field silently
-ignored. [ADR-0002](docs/adr/0002-settings-are-per-account-not-per-profile.md).
+**A setting is one value per account or one per profile, never both.** Each catalogue
+entry declares its scope, and the default is the account, so a restriction nobody thought
+about cannot quietly split across keyring profiles. Taste and routing -- a Spotify market,
+Lucy's model, a default shell -- may opt in to one value per profile. The primary key is
+`(account_id, profile, namespace, key)` with account rows under a sentinel keyring refuses
+as a profile name, so a key cannot be overlaid at both levels. The profile is only ever the
+`?profile=` query parameter, and every request body forbids extra fields, so
+`{"profile": "work"}` is a 422 rather than a field silently ignored.
+[ADR-0002](docs/adr/0002-settings-are-per-account-not-per-profile.md).
 
 **Storage is sparse, so defaults can move.** A row exists only where somebody expressed a
 preference, so changing a default moves everyone who never chose and nobody who did. This
