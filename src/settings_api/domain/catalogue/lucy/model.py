@@ -7,7 +7,8 @@ why the hard ceiling on working-out sits here beside the effort level it bounds 
 than with the other limits.
 
 Nothing here is a prompt override. *How* Lucy should write is prose, it has no bounds, and
-it belongs in a persona note. This group is the model, the second choice when that one
+it belongs in a persona note. `formatting` and `emoji` are here because each is a choice
+between a few named things, which is what a setting is. This group is the model, the second choice when that one
 cannot be reached, the effort, the variance in the wording, and whether a picture may be
 sent at all.
 """
@@ -163,6 +164,45 @@ SETTINGS: tuple[SettingDef, ...] = (
             "`brief` answers and stops. `thorough` shows its reasoning and its alternatives. "
             "This is a default, not a rule: asking for one or the other in a conversation "
             "still wins."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="formatting",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.ENUM,
+        default="auto",
+        choices=("auto", "plain", "markdown"),
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=("auto",),
+        origin=Origin.EXISTING,
+        origin_note="The hub states it in the prompt when it is not auto.",
+        summary="Whether replies are written in Markdown, in plain text, or as Lucy sees fit.",
+        description=(
+            "`plain` is for a client that shows text as it arrives -- a voice, an SMS, a "
+            "terminal with no renderer -- where a heading is a line of hashes and a table "
+            "is a row of pipes. `markdown` says the client renders it, so structure is "
+            "welcome. `auto` says nothing and leaves it to Lucy.\n\n"
+            "It changes how an answer is laid out, never what it says."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="emoji",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.BOOL,
+        default=True,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(True,),
+        origin=Origin.EXISTING,
+        origin_note="The hub tells the model not to use emoji when this is off.",
+        summary="Whether Lucy may use emoji in what it writes to you.",
+        description=(
+            "On says nothing and leaves it to Lucy, which is how it behaves today. Off "
+            "asks for none at all -- for a screen reader that reads each one out by name, "
+            "or for somebody who simply does not want them.\n\n"
+            "On is the fallback because it is today's behaviour: an outage adds a "
+            "decoration, it does not take anything away."
         ),
     ),
     SettingDef(
