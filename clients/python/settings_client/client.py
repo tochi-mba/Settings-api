@@ -93,6 +93,15 @@ class SettingsClient(Protocol):
         """
         ...
 
+    def forget(self, user_token: str, namespace: str | None = None) -> None:
+        """Stop serving this person's cached settings: one namespace, or every one.
+
+        For a setting changed some other way than :meth:`set` -- through settings-api's own
+        routes, by another client -- which this client cannot see happen. The next
+        :meth:`resolve` for that token asks settings-api again.
+        """
+        ...
+
     async def aclose(self) -> None:
         """Release the connection pool."""
         ...
@@ -231,6 +240,22 @@ class HttpSettingsClient:
         self._drop_namespace(user_token, namespace)
         body: dict[str, Any] = response.json()
         return int(body["revision"])
+
+    def forget(self, user_token: str, namespace: str | None = None) -> None:
+        """Stop serving this person's cached settings: one namespace, or every one.
+
+        :meth:`set` does this for its own writes. A setting changed some other way --
+        through settings-api's person-facing routes, by another client -- is invisible here,
+        and without this the old value was served for the rest of the cache's life: a
+        person who turned something off had it still on for up to a minute.
+        """
+        if namespace is not None:
+            self._drop_namespace(user_token, namespace)
+            return
+        stale = [key for key in self._entries if key[0] == user_token]
+        for key in stale:
+            del self._entries[key]
+            self._locks.pop(key, None)
 
     async def aclose(self) -> None:
         """Release the connection pool."""

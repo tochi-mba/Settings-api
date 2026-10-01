@@ -39,6 +39,9 @@ market = resolved["default_market"]
 - `await settings.set(namespace, key, value, user_token=..., profile=...)` writes one
   setting on the person's behalf and returns the new revision. Only ever do this for a
   change the person asked for.
+- `settings.forget(user_token, namespace=None)` stops serving that person's cached
+  settings, for one namespace or all of them. `set` does this for its own writes; call
+  it when a setting changed some other way, so the next `resolve` asks again.
 - `await settings.aclose()` releases the connection pool.
 
 Construct the client at startup; it makes no request until the first `resolve`. Do not

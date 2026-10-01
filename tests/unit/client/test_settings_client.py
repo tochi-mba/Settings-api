@@ -458,6 +458,29 @@ class TestWrites:
         assert recorder.count == 5
         await client.aclose()
 
+    async def test_forgetting_a_person_drops_their_cache_and_nobody_else_s(self) -> None:
+        """The bug, named: a setting changed through settings-api's person-facing routes was
+        invisible to this client, which served the old value for the rest of its cache's
+        life -- Lucy kept asking to remember after the person had turned remembering off."""
+        recorder = Recorder()
+        client = build(recorder)
+        await client.resolve("spotify", user_token=TOKEN_A)
+        await client.resolve("lucy", user_token=TOKEN_A, profile="work")
+        await client.resolve("spotify", user_token=TOKEN_B)
+        assert recorder.count == 3
+
+        client.forget(TOKEN_A, "spotify")
+        await client.resolve("spotify", user_token=TOKEN_A)
+        await client.resolve("lucy", user_token=TOKEN_A, profile="work")
+        assert recorder.count == 4
+
+        client.forget(TOKEN_A)
+        await client.resolve("spotify", user_token=TOKEN_A)
+        await client.resolve("lucy", user_token=TOKEN_A, profile="work")
+        await client.resolve("spotify", user_token=TOKEN_B)
+        assert recorder.count == 6
+        await client.aclose()
+
     async def test_a_refused_write_says_what_was_wrong(self) -> None:
         recorder = Recorder()
         recorder.handler = lambda _request: httpx.Response(

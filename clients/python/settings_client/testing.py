@@ -84,6 +84,8 @@ class FakeSettingsClient:
         """How many times :meth:`resolve` was called. The assertion in a caching test."""
 
         self.writes: list[tuple[str, str, Value]] = []
+        self.forgotten: list[tuple[str, str | None]] = []
+        """Every :meth:`forget`, as ``(user_token, namespace)``. The fake caches nothing."""
 
     def seed(self, namespace: str, values: Mapping[str, Value]) -> None:
         """Set this person's values for one namespace."""
@@ -156,6 +158,10 @@ class FakeSettingsClient:
         self._values.setdefault(namespace, {})[key] = value
         self.revision += 1
         return self.revision
+
+    def forget(self, user_token: str, namespace: str | None = None) -> None:
+        """Record it: there is no cache here to drop."""
+        self.forgotten.append((user_token, namespace))
 
     async def aclose(self) -> None:
         """Nothing to release. Present because the Protocol has it."""

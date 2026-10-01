@@ -8,6 +8,11 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Added
 
+- **settings-client 0.3.0.** `forget(user_token, namespace=None)` stops serving a person's
+  cached settings. `set` already dropped its own writes from the cache; a setting changed
+  through settings-api's person-facing routes was served stale for up to a minute, so a
+  person who turned remembering off in Lucy still had it on for the next turn. Consumers pin
+  the tag `settings-client-v0.3.0`; 0.2.0 calls work unchanged.
 - `LICENSE`: the MIT text the rest of the family ships. `pyproject.toml` and the README
   already said MIT; the repository carried no licence file to say it with.
 - **settings-client 0.2.0.** `resolve()` takes `profile`, and the cache is keyed by token, namespace *and* profile, so two profiles of one person never share a resolved document. A consumer pins the tag `settings-client-v0.2.0`; the 0.1.0 signature is not kept, because a client that accepts a call it cannot honour answers with the wrong profile's values, and that is worse than a `TypeError`.
