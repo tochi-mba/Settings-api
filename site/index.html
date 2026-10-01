@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Settings-api is the one place a person decides how every service in the LUCY family behaves for them: a typed, bounded, described catalogue with sparse storage and a declared rule for outages. A REX Technologies product.">
+<meta name="robots" content="index,follow">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#080A09">
+<meta property="og:title" content="Settings-api — how every service behaves, decided by the person — REX Technologies">
+<meta property="og:description" content="Settings-api is the one place a person decides how every service in the LUCY family behaves for them: a typed, bounded, described catalogue with sparse storage and a declared rule for outages. A REX Technologies product.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://tochi-mba.github.io/Settings-api/">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="https://tochi-mba.github.io/Settings-api/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script>document.documentElement.classList.replace("no-js","js");</script>
+<noscript><style>@media(max-width:760px){.site-nav{display:flex!important;position:static!important;flex-direction:column}.menu-button{display:none!important}}</style></noscript>
+<title>Settings-api — how every service behaves, decided by the person — REX Technologies</title>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="ambient ambient-one" aria-hidden="true"></div>
+<div class="ambient ambient-two" aria-hidden="true"></div>
+
+<header class="site-header">
+  <div class="container nav-wrap">
+    <a class="brand" href="#top" aria-label="Settings-api, by REX Technologies">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M6 10h20M6 16h20M6 22h20"/><circle cx="12" cy="10" r="2.4"/><circle cx="21" cy="16" r="2.4"/><circle cx="10" cy="22" r="2.4"/></svg></span>
+      <span class="brand-lockup"><span class="brand-company">REX Technologies</span><span class="brand-name">Settings-api</span></span>
+    </a>
+    <button class="menu-button" type="button" aria-expanded="false" aria-controls="site-nav"><span class="sr-only">Toggle navigation</span><span></span><span></span></button>
+    <nav id="site-nav" class="site-nav" aria-label="Primary navigation">
+      <a href="#how">How it works</a>
+      <a href="#api">The API</a>
+      <a href="#install">Run it</a>
+      <a href="#limits">What this is not</a>
+      <a href="#docs">Docs</a>
+      <a class="nav-github" href="https://github.com/tochi-mba/Settings-api">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero container" id="top">
+    <div class="hero-copy">
+      <p class="eyebrow signal">Per-person settings</p>
+      <h1>A decision about the <span>person</span> should not be an environment variable.</h1>
+      <p class="hero-lede">Which country their music searches resolve against. How long an idle workspace of theirs stays up. Which model answers their questions. What “delete” means for their notes. One place to decide, and one place to look.</p>
+      <div class="hero-actions">
+        <a class="button button-primary" href="#install">Run it on your machine</a>
+        <a class="button button-secondary" href="https://github.com/tochi-mba/Settings-api">Source on GitHub</a>
+      </div>
+      <div class="hero-meta">
+        <span>Python 3.12+</span>
+        <span>Serves on :8003</span>
+        <span>Tokens from keyring</span>
+        <span>MIT licensed</span>
+      </div>
+    </div>
+    <pre class="console" aria-label="Reading and writing one setting"><code><span class="k">GET</span> /v1/settings/spotify
+  {"default_market": "PT", "timezone": "Europe/Lisbon", ...}
+
+<span class="k">PUT</span> /v1/settings/spotify/default_market
+  {"value": "PT"}
+
+<span class="you"># from another service: four lines, no HTTP call written by hand</span>
+resolved = await settings.resolve("spotify", user_token=caller.token)
+market = resolved["default_market"]</code></pre>
+  </section>
+
+  <section class="trust-strip">
+    <div class="container trust-grid">
+      <div><strong>A catalogue, not a key-value store</strong><span>Every setting has a type, bounds and a description a model can read.</span></div>
+      <div><strong>Sparse storage</strong><span>A row exists only where somebody chose, so defaults can move.</span></div>
+      <div><strong>Outages are declared</strong><span>Each setting says whether to use its default or refuse.</span></div>
+      <div><strong>No administrative surface</strong><span>No route lets an operator read somebody&#x27;s settings.</span></div>
+    </div>
+  </section>
+
+  <section class="section container" id="how">
+    <div class="section-heading">
+      <p class="eyebrow signal">How it works</p>
+      <h2>Two surfaces, one account, and nothing guessed.</h2>
+      <p>Tokens are verified locally against the keys <a href="https://tochi-mba.github.io/Keyring-api/">keyring</a> publishes; nothing about this needed a change there.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <span class="step-number">01</span>
+        <h3>The person decides</h3>
+        <p><code>/v1/settings</code> is for the person, or an assistant acting for them: read, describe, write, reset, export, import, read the change log, and destroy everything.</p>
+      </div>
+      <div class="step">
+        <span class="step-number">02</span>
+        <h3>A service resolves</h3>
+        <p><code>/v1/internal</code> takes two credentials, the calling service's own token and the person's, and answers with that person's effective values for one namespace.</p>
+      </div>
+      <div class="step">
+        <span class="step-number">03</span>
+        <h3>An operator narrows, visibly</h3>
+        <p>A policy file can narrow a bound or pin a value. A pinned setting reports itself as pinned, so a write to it is a 409 that says why.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section container" id="api">
+    <div class="section-heading">
+      <p class="eyebrow signal">The API</p>
+      <h2>Every setting is declared before it can be chosen.</h2>
+      <p>The catalogue, with each setting's type, bounds, default and outage rule, is generated from the code: <a href="https://github.com/tochi-mba/Settings-api/blob/main/docs/catalogue.md">docs/catalogue.md</a>.</p>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-card"><span class="meta">GET /v1/settings/{namespace}</span><h3>Read</h3><p>A person's effective values for one namespace, or one key.</p></div>
+      <div class="feature-card"><span class="meta">GET /v1/settings/schema</span><h3>Describe</h3><p>What can be set, with the description written for a model to read.</p></div>
+      <div class="feature-card"><span class="meta">PUT /v1/settings/{namespace}/{key}</span><h3>Write and reset</h3><p>One value per account, or one per profile where the setting says so. <code>DELETE</code> puts the default back.</p></div>
+      <div class="feature-card"><span class="meta">GET /v1/settings/export</span><h3>Export and import</h3><p>Everything a person has chosen, in one document, and back again.</p></div>
+      <div class="feature-card"><span class="meta">GET /v1/settings/events</span><h3>The change log</h3><p>What was changed, and when.</p></div>
+      <div class="feature-card"><span class="meta">/v1/internal/settings/{namespace}</span><h3>For services</h3><p>Resolve a namespace, or write one setting on the person's behalf, with both credentials.</p></div>
+    </div>
+  </section>
+
+  <section class="section container" id="install">
+    <div class="section-heading">
+      <p class="eyebrow signal">Run it</p>
+      <h2>Three commands.</h2>
+      <p>You need Python 3.12 or newer and <a href="https://docs.astral.sh/uv/">uv</a>. A consuming service uses the <code>settings-client</code> library, which handles caching, revalidation and outages.</p>
+    </div>
+    <ol class="install-steps">
+      <li>Install.
+        <div class="command-row"><code>make install</code><button class="copy-button" type="button" data-copy="make install">Copy</button></div>
+      </li>
+      <li>Run the gate.
+        <div class="command-row"><code>make check</code><button class="copy-button" type="button" data-copy="make check">Copy</button></div>
+      </li>
+      <li>Serve it on :8003; the interactive docs are at <code>/docs</code>.
+        <div class="command-row"><code>make run</code><button class="copy-button" type="button" data-copy="make run">Copy</button></div>
+      </li>
+    </ol>
+    <p class="install-note">A service that does not have a namespace yet starts with <a href="https://github.com/tochi-mba/Settings-api/blob/main/docs/adding-a-service.md">adding a service</a>; the per-service wiring is in <a href="https://github.com/tochi-mba/Settings-api/blob/main/docs/integration.md">integration</a>.</p>
+    <p id="copy-status" class="sr-only" aria-live="polite"></p>
+  </section>
+
+  <section class="section container" id="limits">
+    <div class="section-heading">
+      <p class="eyebrow signal">What this is not</p>
+      <h2>What this is not.</h2>
+    </div>
+    <div class="faq">
+      <details open>
+        <summary>Is it where credentials go?</summary>
+        <p>No. Keyring is. A value that even looks like an API key is refused with a 422 naming it, with no override.</p>
+      </details>
+      <details>
+        <summary>Is it a feature-flag service?</summary>
+        <p>No. A flag is the operator's decision, and everything here is the person's.</p>
+      </details>
+      <details>
+        <summary>Is it a key-value store?</summary>
+        <p>No. Every setting is declared in the catalogue with a type, bounds and a description, because a setting nobody described is a setting nobody can choose.</p>
+      </details>
+      <details>
+        <summary>What happens when it is down?</summary>
+        <p>Each setting declares it. <code>use_default</code> means the default is the most conservative value it has; <code>refuse</code> means the consuming service must fail the operation rather than guess.</p>
+      </details>
+    </div>
+  </section>
+
+  <section class="section container" id="docs">
+    <div class="section-heading">
+      <p class="eyebrow signal">Docs</p>
+      <h2>Written for the person who has to run it.</h2>
+    </div>
+    <div class="feature-grid">
+      <a class="feature-card link" href="https://github.com/tochi-mba/Settings-api/blob/main/docs/catalogue.md"><h3>The catalogue</h3><p>Every setting, generated from the code.</p></a>
+      <a class="feature-card link" href="https://github.com/tochi-mba/Settings-api/blob/main/docs/api.md"><h3>The HTTP contract</h3><p>Both surfaces, route by route.</p></a>
+      <a class="feature-card link" href="https://github.com/tochi-mba/Settings-api/blob/main/docs/integration.md"><h3>Integration</h3><p>Wiring a consuming service, and the client library.</p></a>
+      <a class="feature-card link" href="https://github.com/tochi-mba/Settings-api/blob/main/docs/adding-a-service.md"><h3>Adding a service</h3><p>Giving a service its own namespace.</p></a>
+      <a class="feature-card link" href="https://github.com/tochi-mba/Settings-api/blob/main/docs/architecture.md"><h3>Architecture</h3><p>Why the catalogue is code, and what it may import.</p></a>
+      <a class="feature-card link" href="https://github.com/tochi-mba/Settings-api/blob/main/docs/operations.md"><h3>Operations</h3><p>The policy file: narrowing a bound, pinning a value.</p></a>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-wrap">
+    <span>© <span id="year">2026</span> REX Technologies · Settings-api</span>
+    <span>Part of the <a href="https://tochi-mba.github.io/LUCY-assistant/">LUCY family</a>. MIT licensed.</span>
+    <span class="footer-links">
+      <a href="https://github.com/tochi-mba/Settings-api/blob/main/CHANGELOG.md">What's new <span aria-hidden="true">↗</span></a>
+      <a href="#top">Back to top <span aria-hidden="true">↑</span></a>
+    </span>
+  </div>
+</footer>
+<script src="app.js" defer></script>
+</body>
+</html>

@@ -5,7 +5,7 @@ description = "One place a person decides how every service in the family behave
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
-authors = [{ name = "tochi-mba" }]
+authors = [{ name = "REX Technologies" }]
 keywords = ["fastapi", "settings", "mcp", "personal-data", "privacy"]
 classifiers = [
     "Private :: Do Not Upload",
@@ -169,7 +169,7 @@ convention = "google"
 [tool.mypy]
 python_version = "3.12"
 files = ["src", "tests", "clients/python"]
-mypy_path = "clients/python"
+mypy_path = ["clients/python", "scripts"]
 strict = true
 warn_unreachable = true
 warn_unused_ignores = true

@@ -1,5 +1,7 @@
 # settings-api
 
+A REX Technologies product. Site: <https://tochi-mba.github.io/Settings-api/>
+
 One place a person decides how every service in this family behaves **for them**.
 
 Which country their music searches resolve against. How long an idle workspace of theirs

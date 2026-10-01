@@ -8,6 +8,12 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Added
 
+- A GitHub Pages site at <https://tochi-mba.github.io/Settings-api/>, in the REX ink/signal style: what Settings-api is,
+  its API, how to run it and what it will not do. `site/` is plain static HTML;
+  `.github/workflows/pages.yml` publishes it after `scripts/check_site.py` has checked every
+  page for a broken anchor, a missing asset, an image without alt text or draft text.
+- The repository is attributed to REX Technologies: the LICENSE copyright holder, the package
+  author and the README.
 - **settings-client 0.3.0.** `forget(user_token, namespace=None)` stops serving a person's
   cached settings. `set` already dropped its own writes from the cache; a setting changed
   through settings-api's person-facing routes was served stale for up to a minute, so a
