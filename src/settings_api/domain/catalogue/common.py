@@ -37,12 +37,16 @@ SETTINGS: tuple[SettingDef, ...] = (
         extra_check=ExtraCheck.TIMEZONE,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=("UTC",),
-        origin=Origin.PROPOSED,
-        origin_note="New here. No service in the family holds a per-person time zone today.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by the LUCY hub when it prepares a turn: the clock the assistant is shown "
+            "is this zone's, with its name and its offset that day."
+        ),
         summary="The time zone this person lives in, as an IANA name such as Europe/Lisbon.",
         description=(
             "Used whenever a service renders a time for this person -- a job that finished "
-            "'at 14:20', a session that expires 'tomorrow morning', a reminder. Set it to an "
+            "'at 14:20', a session that expires 'tomorrow morning', a reminder. An assistant "
+            "asked to 'remind me at nine' reads nine on this clock. Set it to an "
             "IANA zone name; the value is checked against the tzdata this deployment has, so "
             "a zone that does not exist is refused at the moment it is set rather than "
             "raising deep in a render path months later.\n\n"
@@ -55,17 +59,25 @@ SETTINGS: tuple[SettingDef, ...] = (
         namespace=NAMESPACE,
         key="locale",
         value_type=SettingType.STR,
-        default="en-GB",
+        default=None,
+        nullable=True,
         max_chars=35,
         pattern=r"^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2}|-[0-9]{3})?$",
         on_unavailable=OnUnavailable.USE_DEFAULT,
-        conservative_values=("en-GB",),
-        origin=Origin.PROPOSED,
-        origin_note="New here.",
+        conservative_values=(None,),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by the LUCY hub when it prepares a turn: a chosen locale is stated to the "
+            "assistant, and none says nothing."
+        ),
         summary="The language and region to write to this person in, as a BCP-47 tag.",
         description=(
             "Language first, then an optional script and region: `en-GB`, `pt-PT`, `zh-Hans-CN`. "
             "Services use it to choose a language and to format dates and numbers.\n\n"
+            "Null, the default, means nobody has chosen: an assistant then answers in the "
+            "language it is written to in, which is a better guide than a default nobody "
+            "picked. Null is conservative for the same reason: an outage that landed on it "
+            "changes how nothing is written.\n\n"
             "The pattern requires the canonical casing -- lowercase language, title-case script, "
             "uppercase region -- because a tag that differs only in case is the same tag, and "
             "two spellings of the same answer is how a lookup table acquires a miss."
@@ -79,8 +91,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         choices=("metric", "imperial"),
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=("metric",),
-        origin=Origin.PROPOSED,
-        origin_note="New here.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by the LUCY hub when it prepares a turn: `imperial` is stated to the "
+            "assistant, and `metric` says nothing."
+        ),
         summary="Whether to state distances, weights and temperatures in metric or imperial.",
         description=(
             "A presentation choice, not a storage one: services record whatever unit the "
@@ -96,8 +111,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         choices=("24h", "12h"),
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=("24h",),
-        origin=Origin.PROPOSED,
-        origin_note="New here.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by the LUCY hub when it prepares a turn: `12h` is stated to the assistant, "
+            "and `24h` says nothing."
+        ),
         summary="Whether to write clock times as 14:20 or as 2:20 pm.",
         description=(
             "Separate from `locale` on purpose. The two usually agree and a person is "
@@ -197,14 +215,18 @@ SETTINGS: tuple[SettingDef, ...] = (
         pattern=r"^[A-Z]{3}$",
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(None,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. Every service that quotes a cost today quotes it in whatever it was billed in.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by the LUCY hub when it prepares a turn: a chosen currency is stated to the "
+            "assistant. No service converts an amount it was billed."
+        ),
         summary="Which currency to state a cost in, as an ISO 4217 code such as GBP or EUR.",
         description=(
             "Anything in the family that puts a number on what something cost -- a token "
-            "budget, a spend warning, a subscription -- says it in this. Null means derive "
-            "it from `locale`, which is right often enough to be the default and wrong for "
-            "everybody who lives in one country and is billed in another.\n\n"
+            "budget, a spend warning, a subscription -- says it in this. Null means nobody "
+            "has chosen, and a cost is stated in whatever it was billed in. It is not derived "
+            "from `locale`, which would be wrong for everybody who lives in one country and "
+            "is billed in another.\n\n"
             "Presentation only. Nothing is converted, recharged or recorded differently "
             "because of it, and a service that cannot convert says what it was billed in "
             "rather than guessing a rate. Null is conservative because it changes nothing: "

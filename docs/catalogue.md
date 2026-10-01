@@ -67,7 +67,7 @@ segment with no fallback -- so the question "which profile do you mean when I do
 had one answer per service and no owner. This gives it one: those services now read this
 setting and keep their own variable only as the answer while nobody has chosen.
 
-> **Needs a change in the owning service first:** `timezone`, `locale`, `units`, `time_format`, `redact_values_in_logs`, `currency`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `redact_values_in_logs`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `common.timezone`
 
@@ -80,10 +80,10 @@ setting and keep their own variable only as the answer while nobody has chosen.
 | Default | `UTC` |
 | Bounds | ≤64 chars, must resolve as a timezone |
 | On unavailable | use default |
-| Origin | **proposed** — New here. No service in the family holds a per-person time zone today. |
+| Origin | existing — Read by the LUCY hub when it prepares a turn: the clock the assistant is shown is this zone's, with its name and its offset that day. |
 | Safe to fall back to | `UTC` |
 
-Used whenever a service renders a time for this person -- a job that finished 'at 14:20', a session that expires 'tomorrow morning', a reminder. Set it to an IANA zone name; the value is checked against the tzdata this deployment has, so a zone that does not exist is refused at the moment it is set rather than raising deep in a render path months later.
+Used whenever a service renders a time for this person -- a job that finished 'at 14:20', a session that expires 'tomorrow morning', a reminder. An assistant asked to 'remind me at nine' reads nine on this clock. Set it to an IANA zone name; the value is checked against the tzdata this deployment has, so a zone that does not exist is refused at the moment it is set rather than raising deep in a render path months later.
 
 Falling back to UTC during an outage shows the right instant in the wrong zone, which is a legible error rather than a wrong one. That is why it falls back rather than refusing.
 
@@ -95,13 +95,15 @@ Falling back to UTC during an outage shows the right instant in the wrong zone, 
 | --- | --- |
 | Type | `str` |
 | Scope | `account` |
-| Default | `en-GB` |
-| Bounds | ≤35 chars, `^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2}|-[0-9]{3})?$` |
+| Default | `null` |
+| Bounds | ≤35 chars, `^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2}|-[0-9]{3})?$`, nullable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. |
-| Safe to fall back to | `en-GB` |
+| Origin | existing — Read by the LUCY hub when it prepares a turn: a chosen locale is stated to the assistant, and none says nothing. |
+| Safe to fall back to | `null` |
 
 Language first, then an optional script and region: `en-GB`, `pt-PT`, `zh-Hans-CN`. Services use it to choose a language and to format dates and numbers.
+
+Null, the default, means nobody has chosen: an assistant then answers in the language it is written to in, which is a better guide than a default nobody picked. Null is conservative for the same reason: an outage that landed on it changes how nothing is written.
 
 The pattern requires the canonical casing -- lowercase language, title-case script, uppercase region -- because a tag that differs only in case is the same tag, and two spellings of the same answer is how a lookup table acquires a miss.
 
@@ -116,7 +118,7 @@ The pattern requires the canonical casing -- lowercase language, title-case scri
 | Default | `metric` |
 | Bounds | `metric` / `imperial` |
 | On unavailable | use default |
-| Origin | **proposed** — New here. |
+| Origin | existing — Read by the LUCY hub when it prepares a turn: `imperial` is stated to the assistant, and `metric` says nothing. |
 | Safe to fall back to | `metric` |
 
 A presentation choice, not a storage one: services record whatever unit the source gave them and convert on the way out. Nothing is reinterpreted when this changes, so switching it cannot turn 20 degrees into 20 of something else.
@@ -132,7 +134,7 @@ A presentation choice, not a storage one: services record whatever unit the sour
 | Default | `24h` |
 | Bounds | `24h` / `12h` |
 | On unavailable | use default |
-| Origin | **proposed** — New here. |
+| Origin | existing — Read by the LUCY hub when it prepares a turn: `12h` is stated to the assistant, and `24h` says nothing. |
 | Safe to fall back to | `24h` |
 
 Separate from `locale` on purpose. The two usually agree and a person is entitled to disagree with their own locale about this one -- plenty of people read en-GB and want a 12-hour clock, and a service that derived this from the locale would give them no way to say so.
@@ -203,10 +205,10 @@ One hour is the short end and is therefore the safe fallback: an outage that lan
 | Default | `null` |
 | Bounds | ≤3 chars, `^[A-Z]{3}$`, nullable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. Every service that quotes a cost today quotes it in whatever it was billed in. |
+| Origin | existing — Read by the LUCY hub when it prepares a turn: a chosen currency is stated to the assistant. No service converts an amount it was billed. |
 | Safe to fall back to | `null` |
 
-Anything in the family that puts a number on what something cost -- a token budget, a spend warning, a subscription -- says it in this. Null means derive it from `locale`, which is right often enough to be the default and wrong for everybody who lives in one country and is billed in another.
+Anything in the family that puts a number on what something cost -- a token budget, a spend warning, a subscription -- says it in this. Null means nobody has chosen, and a cost is stated in whatever it was billed in. It is not derived from `locale`, which would be wrong for everybody who lives in one country and is billed in another.
 
 Presentation only. Nothing is converted, recharged or recorded differently because of it, and a service that cannot convert says what it was billed in rather than guessing a rate. Null is conservative because it changes nothing: an outage that landed on it shows the same number in the same place as today.
 

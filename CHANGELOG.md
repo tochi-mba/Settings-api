@@ -6,6 +6,20 @@ All notable changes to settings-api are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **`common.timezone`, `locale`, `units`, `time_format` and `currency` are no longer listed
+  as doing nothing.** The LUCY hub reads all five when it prepares a turn: the time zone
+  sets the clock the assistant is shown, and a chosen locale, `imperial`, `12h` or a
+  currency is stated to it. Each entry's origin says so.
+- **`common.locale` defaults to null, not `en-GB`.** A default nobody picked would be told
+  to the assistant as if somebody had, and a person writing in French would be answered in
+  English. Null means nobody has chosen, and the assistant answers in the language it is
+  written to in. Storage is sparse, so nobody's stored value changes; a person who never
+  set a locale now resolves to null.
+- `common.currency`'s description no longer says null is derived from `locale`. Nothing
+  derives it; a cost is stated in whatever it was billed in.
+
 ### Added
 
 - **A `github` namespace** for the hub's `repos` capability: `default_owner` (a login or
