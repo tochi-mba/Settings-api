@@ -161,12 +161,17 @@ SETTINGS: tuple[SettingDef, ...] = (
         default=False,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(False,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. spotify-api forwards shuffle per request and has no stored default.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "spotify-api turns shuffle on once a new play is confirmed, when the request "
+            "does not say. Off sends Spotify nothing."
+        ),
         summary="Whether a new play starts shuffled unless the request says otherwise.",
         description=(
-            "Off leaves the queue in the order it was written. On shuffles at the start of "
-            "playback, not mid-track.\n\n"
+            "On shuffles a play that names what to play, once it has started. Off does "
+            "nothing at all: the device keeps whatever shuffle it last had, so a shuffle "
+            "chosen in the Spotify app is not undone by a setting nobody touched. Resuming "
+            "what was already loaded never applies it.\n\n"
             "Off is conservative and is today's behaviour, so an outage never shuffles a "
             "playlist somebody had carefully ordered."
         ),
@@ -180,12 +185,16 @@ SETTINGS: tuple[SettingDef, ...] = (
         choices=("off", "track", "context"),
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=("off",),
-        origin=Origin.PROPOSED,
-        origin_note="New here. spotify-api forwards repeat per request and has no stored default.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "spotify-api sets `track` or `context` once a new play is confirmed, when the "
+            "request does not say. `off` sends Spotify nothing."
+        ),
         summary="Whether a new play repeats the track, the queue, or neither.",
         description=(
-            "`off` plays through and stops. `track` loops one song. `context` loops the "
-            "album or playlist.\n\n"
+            "`track` loops one song and `context` loops the album or playlist, on a play "
+            "that names what to play. `off` does nothing at all: the device keeps whatever "
+            "repeat it last had. Resuming what was already loaded never applies it.\n\n"
             "`off` is conservative because it is today's behaviour and because looping a "
             "track somebody did not ask to loop is the worse of the two surprises."
         ),

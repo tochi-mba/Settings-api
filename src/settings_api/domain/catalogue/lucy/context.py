@@ -23,7 +23,7 @@ SETTINGS: tuple[SettingDef, ...] = (
         key="max_context_tokens",
         value_type=SettingType.INT,
         default=200_000,
-        minimum=8_000,
+        minimum=32_000,
         maximum=1_000_000,
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
@@ -34,7 +34,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         description=(
             "The bands are shares of this number, so lowering it makes every band smaller "
             "together rather than starving one of them. Set below what the model actually "
-            "supports to spend less; setting it above only wastes the reserve."
+            "supports to spend less; setting it above only wastes the reserve.\n\n"
+            "The floor is 32,000 because the fixed prompt and the plan schema are about "
+            "19,000 on their own. Below that nothing fits and nothing can be reclaimed, and "
+            "the hub holds the same floor, so a smaller number here would be accepted and "
+            "then not used."
         ),
     ),
     SettingDef(

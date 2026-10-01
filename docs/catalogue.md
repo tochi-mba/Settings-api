@@ -36,7 +36,7 @@ person's own token. There are two, and both are ones where the service that woul
 from changing them is the service that should not be allowed to.
 
 
-**145 settings across 10 namespaces.**
+**147 settings across 10 namespaces.**
 
 ## Contents
 
@@ -45,7 +45,7 @@ from changing them is the service that should not be allowed to.
 - **`user`** (6) — `erasure_mode`, `grace_days`, `log_values`, `default_write_scope`, `max_pinned`, `search_default_limit`
 - **`persona`** (7) — `default_persona`, `recall_default_limit`, `log_values`, `erasure_mode`, `grace_days`, `max_pinned_fields`, `max_pinned_notes`
 - **`memory`** (7) — `retrieval_limit`, `retrieval_trust_floor`, `write_importance_floor`, `recency_half_life_days`, `consolidation`, `erasure_grace_days`, `block_char_limit`
-- **`lucy`** (85) — `model`, `fallback_model`, `thinking`, `max_thinking_tokens`, `temperature`, `response_style`, `vision_enabled`, `max_context_tokens`, `reserve_percent`, `warn_at_percent`, `compaction_trigger_percent`, `history_turns_kept`, `tool_results_kept`, `max_tool_result_tokens`, `render_read_tokens`, `render_preview_tokens`, `render_total_tokens`, `decisions`, `decision_shadow_mode`, `decision_capabilities`, `decision_memory`, `decision_recovery`, `decision_claims`, `decision_keeping`, `decision_timeout_ms`, `decision_max_per_turn`, `max_output_tokens_per_turn`, `max_tool_calls_per_turn`, `max_turn_seconds`, `max_llm_turns`, `max_subagent_turns`, `max_steps_per_plan`, `max_parallel_steps`, `step_timeout_seconds`, `plan_timeout_seconds`, `session_token_budget`, `agent_max_depth`, `agent_max_concurrent`, `agent_result_token_cap`, `agent_wall_clock_seconds`, `agent_message_max_chars`, `agent_message_burst`, `permission_mode`, `approval_policy`, `confirm_outward_actions`, `enabled_capabilities`, `disabled_capabilities`, `memory_write_policy`, `memory_retrieval_limit`, `incognito`, `log_message_content`, `input_policy`, `auto_title`, `session_idle_archive_days`, `workspace_retention_hours`, `stream_thinking`, `notify_on_long_turn`, `long_turn_seconds`, `retry_attempts`, `retry_max_seconds`, `downstream_timeout_seconds`, `prompt_feeds_enabled`, `prompt_hide_personal_feeds`, `prompt_allow_unknown_feed_fields`, `feeds_account`, `feeds_persona`, `feeds_music`, `feeds_workspace`, `feeds_research`, `feeds_account_pinned`, `feeds_persona_identity`, `feeds_persona_notes`, `feeds_music_now_playing`, `feeds_music_device`, `feeds_music_shuffled`, `feeds_music_repeat`, `feeds_music_queue_head`, `feeds_workspace_cwd`, `feeds_workspace_shell`, `feeds_workspace_pid`, `feeds_workspace_shells_running`, `feeds_workspace_sandbox`, `feeds_workspace_git_branch`, `feeds_workspace_last_command`, `feeds_research_backend`
+- **`lucy`** (87) — `model`, `fallback_model`, `thinking`, `max_thinking_tokens`, `temperature`, `response_style`, `formatting`, `emoji`, `vision_enabled`, `max_context_tokens`, `reserve_percent`, `warn_at_percent`, `compaction_trigger_percent`, `history_turns_kept`, `tool_results_kept`, `max_tool_result_tokens`, `render_read_tokens`, `render_preview_tokens`, `render_total_tokens`, `decisions`, `decision_shadow_mode`, `decision_capabilities`, `decision_memory`, `decision_recovery`, `decision_claims`, `decision_keeping`, `decision_timeout_ms`, `decision_max_per_turn`, `max_output_tokens_per_turn`, `max_tool_calls_per_turn`, `max_turn_seconds`, `max_llm_turns`, `max_subagent_turns`, `max_steps_per_plan`, `max_parallel_steps`, `step_timeout_seconds`, `plan_timeout_seconds`, `session_token_budget`, `agent_max_depth`, `agent_max_concurrent`, `agent_result_token_cap`, `agent_wall_clock_seconds`, `agent_message_max_chars`, `agent_message_burst`, `permission_mode`, `approval_policy`, `confirm_outward_actions`, `enabled_capabilities`, `disabled_capabilities`, `memory_write_policy`, `memory_retrieval_limit`, `incognito`, `log_message_content`, `input_policy`, `auto_title`, `session_idle_archive_days`, `workspace_retention_hours`, `stream_thinking`, `notify_on_long_turn`, `long_turn_seconds`, `retry_attempts`, `retry_max_seconds`, `downstream_timeout_seconds`, `prompt_feeds_enabled`, `prompt_hide_personal_feeds`, `prompt_allow_unknown_feed_fields`, `feeds_account`, `feeds_persona`, `feeds_music`, `feeds_workspace`, `feeds_research`, `feeds_account_pinned`, `feeds_persona_identity`, `feeds_persona_notes`, `feeds_music_now_playing`, `feeds_music_device`, `feeds_music_shuffled`, `feeds_music_repeat`, `feeds_music_queue_head`, `feeds_workspace_cwd`, `feeds_workspace_shell`, `feeds_workspace_pid`, `feeds_workspace_shells_running`, `feeds_workspace_sandbox`, `feeds_workspace_git_branch`, `feeds_workspace_last_command`, `feeds_research_backend`
 - **`spotify`** (8) — `default_market`, `max_batch_size`, `confirm_timeout_seconds`, `job_retention_hours`, `default_device`, `shuffle_on_play`, `repeat_mode`, `allow_explicit`
 - **`search`** (8) — `default_model`, `search_backend`, `disabled_providers`, `max_content_chars`, `safe_search`, `store_query_history`, `default_result_count`, `recency_days`
 - **`environments`** (7) — `idle_environment_hours`, `idle_shell_minutes`, `max_environments_per_profile`, `default_shell`, `persist_history`, `command_timeout_seconds`, `max_output_bytes`
@@ -931,6 +931,42 @@ Low makes repeated questions get near-identical answers and makes the writing fl
 
 `brief` answers and stops. `thorough` shows its reasoning and its alternatives. This is a default, not a rule: asking for one or the other in a conversation still wins.
 
+#### `lucy.formatting`
+
+*Whether replies are written in Markdown, in plain text, or as Lucy sees fit.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `auto` |
+| Bounds | `auto` / `plain` / `markdown` |
+| On unavailable | use default |
+| Origin | existing — The hub states it in the prompt when it is not auto. |
+| Safe to fall back to | `auto` |
+
+`plain` is for a client that shows text as it arrives -- a voice, an SMS, a terminal with no renderer -- where a heading is a line of hashes and a table is a row of pipes. `markdown` says the client renders it, so structure is welcome. `auto` says nothing and leaves it to Lucy.
+
+It changes how an answer is laid out, never what it says.
+
+#### `lucy.emoji`
+
+*Whether Lucy may use emoji in what it writes to you.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub tells the model not to use emoji when this is off. |
+| Safe to fall back to | `true` |
+
+On says nothing and leaves it to Lucy, which is how it behaves today. Off asks for none at all -- for a screen reader that reads each one out by name, or for somebody who simply does not want them.
+
+On is the fallback because it is today's behaviour: an outage adds a decoration, it does not take anything away.
+
 #### `lucy.vision_enabled`
 
 *Whether images in a message may be sent to the model at all.*
@@ -957,12 +993,14 @@ On, a screenshot or a photo you attach goes to the provider along with the text.
 | Type | `int` |
 | Scope | `account` |
 | Default | `200000` |
-| Bounds | 8000-1000000, operator-clampable |
+| Bounds | 32000-1000000, operator-clampable |
 | On unavailable | use default |
 | Origin | existing — The hub's band allocator takes this as the window; shares are fractions of it. |
 | Safe to fall back to | `200000` |
 
 The bands are shares of this number, so lowering it makes every band smaller together rather than starving one of them. Set below what the model actually supports to spend less; setting it above only wastes the reserve.
+
+The floor is 32,000 because the fixed prompt and the plan schema are about 19,000 on their own. Below that nothing fits and nothing can be reclaimed, and the hub holds the same floor, so a smaller number here would be accepted and then not used.
 
 #### `lucy.reserve_percent`
 
@@ -2287,7 +2325,7 @@ here. That matters for ``confirm_timeout_seconds`` in particular: spotify-api ca
 300, so a catalogue that allowed 600 would let a person set a value the service they were
 configuring would refuse.
 
-> **Needs a change in the owning service first:** `shuffle_on_play`, `repeat_mode`, `allow_explicit`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `allow_explicit`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `spotify.default_market`
 
@@ -2392,10 +2430,10 @@ This is playback routing, not what the model sees. Whether now-playing appears i
 | Default | `false` |
 | Bounds | — |
 | On unavailable | use default |
-| Origin | **proposed** — New here. spotify-api forwards shuffle per request and has no stored default. |
+| Origin | existing — spotify-api turns shuffle on once a new play is confirmed, when the request does not say. Off sends Spotify nothing. |
 | Safe to fall back to | `false` |
 
-Off leaves the queue in the order it was written. On shuffles at the start of playback, not mid-track.
+On shuffles a play that names what to play, once it has started. Off does nothing at all: the device keeps whatever shuffle it last had, so a shuffle chosen in the Spotify app is not undone by a setting nobody touched. Resuming what was already loaded never applies it.
 
 Off is conservative and is today's behaviour, so an outage never shuffles a playlist somebody had carefully ordered.
 
@@ -2410,10 +2448,10 @@ Off is conservative and is today's behaviour, so an outage never shuffles a play
 | Default | `off` |
 | Bounds | `off` / `track` / `context` |
 | On unavailable | use default |
-| Origin | **proposed** — New here. spotify-api forwards repeat per request and has no stored default. |
+| Origin | existing — spotify-api sets `track` or `context` once a new play is confirmed, when the request does not say. `off` sends Spotify nothing. |
 | Safe to fall back to | `off` |
 
-`off` plays through and stops. `track` loops one song. `context` loops the album or playlist.
+`track` loops one song and `context` loops the album or playlist, on a play that names what to play. `off` does nothing at all: the device keeps whatever repeat it last had. Resuming what was already loaded never applies it.
 
 `off` is conservative because it is today's behaviour and because looping a track somebody did not ask to loop is the worse of the two surprises.
 

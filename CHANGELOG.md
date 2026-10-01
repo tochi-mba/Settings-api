@@ -8,6 +8,12 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Changed
 
+- **`spotify.shuffle_on_play` and `spotify.repeat_mode` are no longer listed as doing
+  nothing.** spotify-api applies them to a new play that does not say otherwise. Their
+  descriptions now say what off means: nothing is sent, and the device keeps the mode it had.
+- **`lucy.max_context_tokens` has a floor of 32,000, not 8,000.** The hub's fixed prompt and
+  plan schema are about 19,000 on their own, and the hub already holds this floor, so a
+  smaller value was accepted here and then not used.
 - **`common.timezone`, `locale`, `units`, `time_format` and `currency` are no longer listed
   as doing nothing.** The LUCY hub reads all five when it prepares a turn: the time zone
   sets the clock the assistant is shown, and a chosen locale, `imperial`, `12h` or a
@@ -22,6 +28,10 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Added
 
+- **`lucy.formatting`** (`auto`, `plain`, `markdown`) and **`lucy.emoji`** (on or off): two
+  choices about how a reply is laid out, each between a few named things. `plain` is for a
+  client that shows text as it arrives (a voice, an SMS); emoji off is for a screen reader
+  that reads each one out. Both profile-scoped, and both say nothing at their defaults.
 - **A `github` namespace** for the hub's `repos` capability: `default_owner` (a login or
   organisation; null means the connected account) and `default_visibility` (`private` by
   default and on any outage). Both profile-scoped.
