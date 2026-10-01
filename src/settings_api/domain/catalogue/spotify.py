@@ -206,8 +206,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         value_type=SettingType.BOOL,
         default=True,
         on_unavailable=OnUnavailable.REFUSE,
-        origin=Origin.PROPOSED,
-        origin_note="New here. spotify-api passes searches through and does not filter on the explicit flag.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "spotify-api filters lookup candidates and checks named track URIs before play "
+            "or queue commands. Album and playlist contexts and resume are not inspected."
+        ),
         summary="Whether tracks marked explicit may be returned and played.",
         description=(
             "Off, a track the catalogue marks explicit is left out of results and refused "

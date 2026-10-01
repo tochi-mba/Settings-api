@@ -211,6 +211,12 @@ class TestEveryEntry:
 
 
 class TestTheCatalogueAsAWhole:
+    def test_explicit_filter_is_documented_as_running_in_spotify(self) -> None:
+        """The bug, named: a deployed explicit filter was still advertised as a proposal."""
+        entry = BY_QUALIFIED["spotify.allow_explicit"]
+        assert entry.origin is Origin.EXISTING
+        assert "named track" in entry.origin_note
+
     def test_the_counts_guard_against_an_accidental_deletion(self) -> None:
         assert {
             namespace: len(entries) for namespace, entries in CATALOGUE.items()

@@ -8,6 +8,9 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Changed
 
+- `spotify.allow_explicit` is documented as implemented: lookup candidates and named
+  track URIs are filtered, while album and playlist contexts and resume are not inspected.
+
 - **Six more entries are no longer listed as doing nothing**, each with an origin that says
   which service reads it and what it does: `search.safe_search` and `search.recency_days`
   (web-search-api), and `environments.command_timeout_seconds`,
