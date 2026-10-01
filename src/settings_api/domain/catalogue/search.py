@@ -133,11 +133,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         choices=("off", "moderate", "strict"),
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=("moderate", "strict"),
-        origin=Origin.PROPOSED,
+        origin=Origin.EXISTING,
         origin_note=(
-            "New here. web-search-api has `safe_search: bool = True` on its request schema "
-            "and no server-side setting, so this needs a tri-state there first; today `off` "
-            "would map to false and the other two to true."
+            "web-search-api applies it to a search that does not say, and holds a request "
+            "that does to at least this level. Google has one filter, so `moderate` and "
+            "`strict` both turn it on; SearxNG is sent all three."
         ),
         summary="How aggressively to filter explicit results out of searches.",
         description=(
@@ -147,7 +147,8 @@ SETTINGS: tuple[SettingDef, ...] = (
             "Both `moderate` and `strict` are conservative, and `off` is not -- so a future "
             "change of default has to stay inside the filtering two. An outage cannot turn "
             "filtering off, which is the property worth having on a setting a household might "
-            "share."
+            "share. For the same reason a request body can ask for more filtering than this "
+            "and never for less."
         ),
     ),
     SettingDef(
@@ -215,10 +216,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(None,),
-        origin=Origin.PROPOSED,
+        origin=Origin.EXISTING,
         origin_note=(
-            "New here. web-search-api has a recency filter on some providers and no "
-            "per-account default."
+            "web-search-api applies it to a search that names no recency of its own: a day "
+            "count to Google, and to SearxNG the smallest of day, week, month or year that "
+            "covers it."
         ),
         summary="How recent a result must be, in days, when the request does not say.",
         description=(

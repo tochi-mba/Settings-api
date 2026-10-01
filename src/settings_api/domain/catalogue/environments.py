@@ -159,23 +159,24 @@ SETTINGS: tuple[SettingDef, ...] = (
         key="command_timeout_seconds",
         scope=SettingScope.PROFILE,
         value_type=SettingType.INT,
-        default=120,
+        default=60,
         minimum=5,
         maximum=3600,
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
-        conservative_values=(120,),
-        origin=Origin.PROPOSED,
+        conservative_values=(60,),
+        origin=Origin.EXISTING,
         origin_note=(
-            "New here. environments-api times out a command with a deployment-wide number; "
-            "this is the per-person default the request may still override."
+            "Read by the LUCY hub, which gives it to a command that names no timeout, inside "
+            "the hub's own ceiling of ten minutes. environments-api itself takes the timeout "
+            "on each request and does not read this."
         ),
         summary="How long a command may run before the shell kills it, when nobody says.",
         description=(
             "Five seconds is for people who want a hung install to fail fast. An hour is for "
             "a long build that prints nothing for a while. The request may still name a "
             "shorter or longer limit inside this range.\n\n"
-            "Two minutes is today's behaviour in spirit and is therefore the fallback: an "
+            "One minute is what the hub gives a command today and is therefore the fallback: an "
             "outage that shortened it would kill a build; an outage that lengthened it would "
             "leave a runaway process sitting on the box."
         ),
@@ -190,10 +191,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(1_048_576,),
-        origin=Origin.PROPOSED,
+        origin=Origin.EXISTING,
         origin_note=(
-            "New here. environments-api takes `max_output_bytes` per exec request, default "
-            "256 KiB and at most 8 MiB, and has no per-person default."
+            "Read by the LUCY hub, which captures at most 64 KiB of a command's output: a "
+            "smaller value here narrows that, and a larger one changes nothing. "
+            "environments-api itself takes the cap on each request and does not read this."
         ),
         summary="How much of a command's output may be captured and handed back.",
         description=(

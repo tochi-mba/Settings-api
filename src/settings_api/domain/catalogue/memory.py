@@ -28,20 +28,24 @@ SETTINGS: tuple[SettingDef, ...] = (
         namespace=NAMESPACE,
         key="retrieval_limit",
         value_type=SettingType.INT,
-        default=12,
+        default=10,
         minimum=0,
         maximum=100,
         operator_clampable=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
-        conservative_values=(12,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. memory-api takes a limit per request; this is the default it should use.",
+        conservative_values=(10,),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by the LUCY hub: it is the size of a recall that names none, to at most "
+            "twenty. memory-api itself takes a limit on each request and does not read this."
+        ),
         summary="How many memories one retrieval may return.",
         description=(
             "Zero does not make the assistant forget you: it still sees the topic index, "
             "which is the list of subjects it knows something about. It simply brings "
-            "nothing in until asked. Higher numbers cost context and can bury a relevant "
-            "memory among merely related ones."
+            "nothing in until asked, and asking -- a search -- still brings back the best "
+            "match. Higher numbers cost context and can bury a relevant memory among merely "
+            "related ones."
         ),
     ),
     SettingDef(
@@ -51,8 +55,12 @@ SETTINGS: tuple[SettingDef, ...] = (
         default="inferred",
         choices=("stated", "observed", "inferred"),
         on_unavailable=OnUnavailable.REFUSE,
-        origin=Origin.PROPOSED,
-        origin_note="New here. memory-api already excludes `untrusted` until it is confirmed.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by the LUCY hub, which leaves out of a recall whatever is below the floor "
+            "and says how many it left out. memory-api already excludes `untrusted` until "
+            "it is confirmed."
+        ),
         summary="How much an assistant may rely on, from what you said to what it worked out.",
         description=(
             "`stated` uses only what you told it. `observed` adds what it saw directly. "

@@ -647,7 +647,7 @@ Most entries are ``PROPOSED``: memory-api reads its own configuration today and 
 per-account settings seam. ``docs/catalogue.md`` repeats that per entry, so nobody ships a
 setting believing it already does something.
 
-> **Needs a change in the owning service first:** `retrieval_limit`, `retrieval_trust_floor`, `write_importance_floor`, `consolidation`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `write_importance_floor`, `consolidation`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `memory.retrieval_limit`
 
@@ -657,13 +657,13 @@ setting believing it already does something.
 | --- | --- |
 | Type | `int` |
 | Scope | `account` |
-| Default | `12` |
+| Default | `10` |
 | Bounds | 0-100, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. memory-api takes a limit per request; this is the default it should use. |
-| Safe to fall back to | `12` |
+| Origin | existing — Read by the LUCY hub: it is the size of a recall that names none, to at most twenty. memory-api itself takes a limit on each request and does not read this. |
+| Safe to fall back to | `10` |
 
-Zero does not make the assistant forget you: it still sees the topic index, which is the list of subjects it knows something about. It simply brings nothing in until asked. Higher numbers cost context and can bury a relevant memory among merely related ones.
+Zero does not make the assistant forget you: it still sees the topic index, which is the list of subjects it knows something about. It simply brings nothing in until asked, and asking -- a search -- still brings back the best match. Higher numbers cost context and can bury a relevant memory among merely related ones.
 
 #### `memory.retrieval_trust_floor`
 
@@ -676,7 +676,7 @@ Zero does not make the assistant forget you: it still sees the topic index, whic
 | Default | `inferred` |
 | Bounds | `stated` / `observed` / `inferred` |
 | On unavailable | **refuse** |
-| Origin | **proposed** — New here. memory-api already excludes `untrusted` until it is confirmed. |
+| Origin | existing — Read by the LUCY hub, which leaves out of a recall whatever is below the floor and says how many it left out. memory-api already excludes `untrusted` until it is confirmed. |
 
 `stated` uses only what you told it. `observed` adds what it saw directly. `inferred` adds what it worked out, which is the most useful and the most likely to be wrong about you.
 
@@ -2489,7 +2489,7 @@ changes ordering, not sources. And ``safe_search`` exists today only as a per-re
 boolean on its request schema, with no server-side setting at all, so the three-way choice
 below needs a change there before it means anything.
 
-> **Needs a change in the owning service first:** `safe_search`, `store_query_history`, `recency_days`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `store_query_history`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `search.default_model`
 
@@ -2575,12 +2575,12 @@ The default is web-search-api's own, so falling back to it reproduces today's be
 | Default | `moderate` |
 | Bounds | `off` / `moderate` / `strict` |
 | On unavailable | use default |
-| Origin | **proposed** — New here. web-search-api has `safe_search: bool = True` on its request schema and no server-side setting, so this needs a tri-state there first; today `off` would map to false and the other two to true. |
+| Origin | existing — web-search-api applies it to a search that does not say, and holds a request that does to at least this level. Google has one filter, so `moderate` and `strict` both turn it on; SearxNG is sent all three. |
 | Safe to fall back to | `moderate`, `strict` |
 
 Three states rather than the on/off the owning service has, because the middle one is what most people mean: filter the obvious, do not filter a medical question into uselessness.
 
-Both `moderate` and `strict` are conservative, and `off` is not -- so a future change of default has to stay inside the filtering two. An outage cannot turn filtering off, which is the property worth having on a setting a household might share.
+Both `moderate` and `strict` are conservative, and `off` is not -- so a future change of default has to stay inside the filtering two. An outage cannot turn filtering off, which is the property worth having on a setting a household might share. For the same reason a request body can ask for more filtering than this and never for less.
 
 #### `search.store_query_history`
 
@@ -2632,7 +2632,7 @@ Eight is a typical default and the fallback, so an outage neither floods the pro
 | Default | `null` |
 | Bounds | 1-365, nullable, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. web-search-api has a recency filter on some providers and no per-account default. |
+| Origin | existing — web-search-api applies it to a search that names no recency of its own: a day count to Google, and to SearxNG the smallest of day, week, month or year that covers it. |
 | Safe to fall back to | `null` |
 
 Null means no recency filter, which is what the service does today and is therefore the conservative fallback: an outage does not hide a year-old page somebody needed. A number of 1 means 'today', 7 a week, 365 a year.
@@ -2662,7 +2662,7 @@ what everybody gets today whenever settings-api was unreachable.
 ``default_profile`` is not repeated here. ``common.default_profile`` answers it for every
 service, environments-api's ``ENVAPI_DEFAULT_PROFILE`` included.
 
-> **Needs a change in the owning service first:** `default_shell`, `persist_history`, `command_timeout_seconds`, `max_output_bytes`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `default_shell`, `persist_history`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `environments.idle_environment_hours`
 
@@ -2770,15 +2770,15 @@ Off is conservative: command history is a second copy of whatever was typed, inc
 | --- | --- |
 | Type | `int` |
 | Scope | `profile` |
-| Default | `120` |
+| Default | `60` |
 | Bounds | 5-3600, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. environments-api times out a command with a deployment-wide number; this is the per-person default the request may still override. |
-| Safe to fall back to | `120` |
+| Origin | existing — Read by the LUCY hub, which gives it to a command that names no timeout, inside the hub's own ceiling of ten minutes. environments-api itself takes the timeout on each request and does not read this. |
+| Safe to fall back to | `60` |
 
 Five seconds is for people who want a hung install to fail fast. An hour is for a long build that prints nothing for a while. The request may still name a shorter or longer limit inside this range.
 
-Two minutes is today's behaviour in spirit and is therefore the fallback: an outage that shortened it would kill a build; an outage that lengthened it would leave a runaway process sitting on the box.
+One minute is what the hub gives a command today and is therefore the fallback: an outage that shortened it would kill a build; an outage that lengthened it would leave a runaway process sitting on the box.
 
 #### `environments.max_output_bytes`
 
@@ -2791,7 +2791,7 @@ Two minutes is today's behaviour in spirit and is therefore the fallback: an out
 | Default | `1048576` |
 | Bounds | 4096-8388608, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. environments-api takes `max_output_bytes` per exec request, default 256 KiB and at most 8 MiB, and has no per-person default. |
+| Origin | existing — Read by the LUCY hub, which captures at most 64 KiB of a command's output: a smaller value here narrows that, and a larger one changes nothing. environments-api itself takes the cap on each request and does not read this. |
 | Safe to fall back to | `1048576` |
 
 A ceiling on what Lucy will ever put in a tool result, not on what the process may print. Bytes beyond this are truncated with a count, never silently dropped.
