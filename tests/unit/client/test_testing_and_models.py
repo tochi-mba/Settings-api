@@ -36,6 +36,12 @@ class TestTheFake:
         assert fake.writes == [("spotify", "default_market", "GB")]
         assert (await fake.resolve("spotify", user_token="t"))["default_market"] == "GB"
 
+    def test_forgetting_is_recorded_for_a_test_to_assert_on(self) -> None:
+        fake = FakeSettingsClient()
+        fake.forget("t", "lucy")
+        fake.forget("t")
+        assert fake.forgotten == [("t", "lucy"), ("t", None)]
+
     async def test_unavailable_with_known_fallbacks_degrades_like_the_real_client(self) -> None:
         fake = FakeSettingsClient(
             fallbacks={
