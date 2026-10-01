@@ -64,6 +64,7 @@ from typing import TYPE_CHECKING, Protocol
 from settings_api.domain.catalogue import (
     common,
     environments,
+    github,
     keyring,
     lucy,
     memory,
@@ -111,6 +112,7 @@ _MODULES: tuple[NamespaceModule, ...] = (
     spotify,
     search,
     environments,
+    github,
 )
 """Every namespace module this repository ships, in the order the documentation presents
 them.

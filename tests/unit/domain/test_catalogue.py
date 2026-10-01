@@ -43,6 +43,7 @@ EXPECTED_COUNTS = {
     "spotify": 8,
     "search": 8,
     "environments": 7,
+    "github": 2,
 }
 
 PROFILE_SCOPED = frozenset(
@@ -57,6 +58,8 @@ PROFILE_SCOPED = frozenset(
         "environments.idle_environment_hours",
         "environments.idle_shell_minutes",
         "environments.default_shell",
+        "github.default_owner",
+        "github.default_visibility",
         "environments.persist_history",
         "environments.command_timeout_seconds",
         "persona.default_persona",
@@ -144,6 +147,8 @@ READ_BY_A_SERVICE = frozenset(
         "environments.idle_environment_hours",  # environments-api, at create
         "environments.idle_shell_minutes",
         "environments.max_environments_per_profile",
+        "github.default_owner",  # the hub, as the repos pack's owner for a new repository
+        "github.default_visibility",  # the hub, as its visibility
     }
 )
 
@@ -208,7 +213,7 @@ class TestTheCatalogueAsAWhole:
         assert {
             namespace: len(entries) for namespace, entries in CATALOGUE.items()
         } == EXPECTED_COUNTS
-        assert len(BY_QUALIFIED) == sum(EXPECTED_COUNTS.values()) == 143
+        assert len(BY_QUALIFIED) == sum(EXPECTED_COUNTS.values()) == 145
 
     def test_profile_scoped_settings_are_exactly_this_set(self) -> None:
         # Exclusive scopes, declared on the entry. A setting nobody thought about stays
