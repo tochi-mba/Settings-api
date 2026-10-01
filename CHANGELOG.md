@@ -8,6 +8,10 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Added
 
+- **A `github` namespace** for the hub's `repos` capability: `default_owner` (a login or
+  organisation; null means the connected account) and `default_visibility` (`private` by
+  default and on any outage). Both profile-scoped.
+
 - A GitHub Pages site at <https://tochi-mba.github.io/Settings-api/>, in the REX ink/signal style: what Settings-api is,
   its API, how to run it and what it will not do. `site/` is plain static HTML;
   `.github/workflows/pages.yml` publishes it after `scripts/check_site.py` has checked every

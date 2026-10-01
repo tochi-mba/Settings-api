@@ -36,7 +36,7 @@ person's own token. There are two, and both are ones where the service that woul
 from changing them is the service that should not be allowed to.
 
 
-**143 settings across 9 namespaces.**
+**145 settings across 10 namespaces.**
 
 ## Contents
 
@@ -49,6 +49,7 @@ from changing them is the service that should not be allowed to.
 - **`spotify`** (8) — `default_market`, `max_batch_size`, `confirm_timeout_seconds`, `job_retention_hours`, `default_device`, `shuffle_on_play`, `repeat_mode`, `allow_explicit`
 - **`search`** (8) — `default_model`, `search_backend`, `disabled_providers`, `max_content_chars`, `safe_search`, `store_query_history`, `default_result_count`, `recency_days`
 - **`environments`** (7) — `idle_environment_hours`, `idle_shell_minutes`, `max_environments_per_profile`, `default_shell`, `persist_history`, `command_timeout_seconds`, `max_output_bytes`
+- **`github`** (2) — `default_owner`, `default_visibility`
 
 ## `common`
 
@@ -2756,3 +2757,48 @@ Two minutes is today's behaviour in spirit and is therefore the fallback: an out
 A ceiling on what Lucy will ever put in a tool result, not on what the process may print. Bytes beyond this are truncated with a count, never silently dropped.
 
 One mebibyte is the fallback because it is a typical capture cap and because raising it during an outage would spend prompt on a log dump nobody asked to keep. The operator may still clamp this down on a small box.
+
+## `github`
+
+Read by the lucy hub for its `repos` capability, which is served by Github-api. A model
+asked to "make a repo for this" names a repository and nothing else; these two settings are
+what the person would have said if asked, so the repository lands under the right account
+and is not public by accident.
+
+Both are profile-scoped on purpose: a `work` profile usually creates under an organisation
+and a `personal` one under the person's own login, and one value for both would be wrong
+for one of them.
+
+#### `github.default_owner`
+
+*Which account or organisation new repositories are created under.*
+
+| | |
+| --- | --- |
+| Type | `str` |
+| Scope | `profile` |
+| Default | `null` |
+| Bounds | ≤39 chars, `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$`, nullable |
+| On unavailable | use default |
+| Origin | existing — Read by the lucy hub, which uses it as the owner of a new repository, and as the owner to search under, when the request names none. |
+| Safe to fall back to | `null` |
+
+A GitHub login or organisation name, as it appears in a repository's address. Null means the connected account itself, which is what GitHub does when no owner is given and is therefore the conservative fallback: an outage never puts a repository in an organisation the person did not choose.
+
+This does not grant anything. Creating under an organisation still needs the connected account to be allowed to, and Lucy still asks before creating.
+
+#### `github.default_visibility`
+
+*Whether a new repository is private, public or internal unless asked.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `private` |
+| Bounds | `private` / `public` / `internal` |
+| On unavailable | use default |
+| Origin | existing — Read by the lucy hub, which uses it as the visibility of a new repository when the request does not say. |
+| Safe to fall back to | `private` |
+
+`private` by default and on any outage, because a repository made public by mistake has been published, and making it private again does not unpublish it. `internal` exists only for organisations on GitHub Enterprise; GitHub refuses it anywhere else, and the refusal reaches the person as such.
