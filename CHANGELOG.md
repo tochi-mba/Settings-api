@@ -8,6 +8,15 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Changed
 
+- **Six more entries are no longer listed as doing nothing**, each with an origin that says
+  which service reads it and what it does: `search.safe_search` and `search.recency_days`
+  (web-search-api), and `environments.command_timeout_seconds`,
+  `environments.max_output_bytes`, `memory.retrieval_limit` and
+  `memory.retrieval_trust_floor` (the LUCY hub).
+- **Two defaults match the service that reads them.** `environments.command_timeout_seconds`
+  is 60, not 120, and `memory.retrieval_limit` is 10, not 12: those are what the hub gave a
+  command and a recall before it read anybody's settings, so wiring them up changes nothing
+  for a person who never chose.
 - **`spotify.shuffle_on_play` and `spotify.repeat_mode` are no longer listed as doing
   nothing.** spotify-api applies them to a new play that does not say otherwise. Their
   descriptions now say what off means: nothing is sent, and the device keeps the mode it had.
