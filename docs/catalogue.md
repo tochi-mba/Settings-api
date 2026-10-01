@@ -2325,8 +2325,6 @@ here. That matters for ``confirm_timeout_seconds`` in particular: spotify-api ca
 300, so a catalogue that allowed 600 would let a person set a value the service they were
 configuring would refuse.
 
-> **Needs a change in the owning service first:** `allow_explicit`. Until that change lands, setting these stores the value and changes no behaviour.
-
 #### `spotify.default_market`
 
 *Which country's catalogue track searches resolve against by default.*
@@ -2466,7 +2464,7 @@ Off is conservative and is today's behaviour, so an outage never shuffles a play
 | Default | `true` |
 | Bounds | — |
 | On unavailable | **refuse** |
-| Origin | **proposed** — New here. spotify-api passes searches through and does not filter on the explicit flag. |
+| Origin | existing — spotify-api filters lookup candidates and checks named track URIs before play or queue commands. Album and playlist contexts and resume are not inspected. |
 
 Off, a track the catalogue marks explicit is left out of results and refused for playback, and the clean version is offered where one exists. The flag is the label the rights holder applied, so it is imperfect in both directions -- this narrows what is offered rather than promising anything about content.
 
