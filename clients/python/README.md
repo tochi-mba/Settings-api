@@ -65,7 +65,7 @@ namespace's declared fallbacks, and only then raises.
 from settings_client.testing import FakeSettingsClient, asgi_client
 
 fake = FakeSettingsClient()
-fake.seed("spotify", {"default_market": "PT"})                     # every profile
+fake.seed("spotify", {"default_market": "PT"})  # every profile
 fake.seed("spotify", {"allow_explicit": False}, profile="family")  # only "family"
 fake.unavailable = True  # the case most services forget to test
 ```
