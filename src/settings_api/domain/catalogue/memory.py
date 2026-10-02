@@ -12,9 +12,10 @@ pages are overwritten. And ``retrieval_trust_floor`` decides whether anything an
 merely *worked out* about somebody may be used without being confirmed -- the difference
 between a store of what you said and a store of what was inferred from it.
 
-Most entries are ``PROPOSED``: memory-api reads its own configuration today and has no
-per-account settings seam. ``docs/catalogue.md`` repeats that per entry, so nobody ships a
-setting believing it already does something.
+memory-api reads ``write_importance_floor`` per request, and the LUCY hub applies the
+retrieval limit and trust floor when it recalls. ``consolidation`` is still a proposal:
+``docs/catalogue.md`` says so per entry, so nobody ships a setting believing it already
+does something.
 """
 
 from __future__ import annotations
@@ -80,19 +81,28 @@ SETTINGS: tuple[SettingDef, ...] = (
         namespace=NAMESPACE,
         key="write_importance_floor",
         value_type=SettingType.INT,
-        default=3,
+        default=1,
         minimum=1,
         maximum=10,
         operator_clampable=True,
         on_unavailable=OnUnavailable.REFUSE,
-        origin=Origin.PROPOSED,
-        origin_note="New here.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "memory-api refuses a new memory whose importance (1 to 10, 5 when the write "
+            "names none) is below this, with 422 `below-importance-floor`; one ADD below it "
+            "refuses a whole reconciled batch. A correction is not held to it. When the floor "
+            "cannot be read, a write that adds a memory is a 503 and nothing is stored."
+        ),
         summary="How significant something has to be before it is worth remembering.",
         description=(
             "Low keeps almost everything and makes the store noisy. High keeps only what "
             "matters and quietly loses things you would have wanted.\n\n"
             "It refuses rather than falling back: writing nothing during an outage is "
-            "recoverable, and writing down more about a person than they agreed to is not."
+            "recoverable, and writing down more about a person than they agreed to is not.\n\n"
+            "One, the default, keeps everything, which is what memory-api did before anybody "
+            "could choose: memory-api cannot tell a default from a choice, so a higher "
+            "default would start refusing memories for people who never set this. A "
+            "correction is never refused for it: it replaces something already remembered."
         ),
     ),
     SettingDef(
@@ -124,9 +134,12 @@ SETTINGS: tuple[SettingDef, ...] = (
         on_unavailable=OnUnavailable.REFUSE,
         origin=Origin.PROPOSED,
         origin_note=(
-            "New here. memory-api now runs an idle-merge pass on a deployment-wide clock "
-            "(`MEMORY_CONSOLIDATE_IDLE_SECONDS`, `MEMORY_CONSOLIDATE_INTERVAL_SECONDS`, zero "
-            "interval for off); it has no per-account choice of when, and no session-end hook."
+            "Not read by memory-api. Its idle-merge pass runs in the background on a "
+            "deployment-wide clock (`MEMORY_CONSOLIDATE_IDLE_SECONDS`, "
+            "`MEMORY_CONSOLIDATE_INTERVAL_SECONDS`, zero interval for off) with no person's "
+            "token to read this with, and it has no session-end signal for `on_session_end` "
+            "to mean anything. Honouring it needs the hub to report a session's end and the "
+            "pass to read settings without a user token."
         ),
         summary="When an assistant tidies what it has remembered.",
         description=(

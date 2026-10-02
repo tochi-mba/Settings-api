@@ -115,19 +115,22 @@ SETTINGS: tuple[SettingDef, ...] = (
         choices=("bash", "sh"),
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=("bash",),
-        origin=Origin.PROPOSED,
+        origin=Origin.EXISTING,
         origin_note=(
-            "New here. environments-api has one deployment-wide `shell_binary`, so it needs "
-            "to accept a choice between installed shells before this does anything."
+            "environments-api reads it when a shell opens. `sh` starts the deployment's "
+            "`ENVAPI_SH_BINARY` (an operator who blanks it turns the choice off); `bash` "
+            "starts `ENVAPI_SHELL_BINARY`. A chosen shell the host does not have falls back "
+            "to `ENVAPI_SHELL_BINARY`, is logged, and the shell reports which binary ran."
         ),
-        summary="Which shell a new session starts when the request does not name one.",
+        summary="Which shell a new session starts.",
         description=(
             "`sh` is for people whose scripts are meant to be portable and who want to find "
             "out when they are not. `bash` is what environments-api starts today.\n\n"
             "The choices are deliberately two shells every sandbox image has. A free-text "
             "path would be a person choosing which binary runs inside the sandbox, which is "
-            "the operator's decision, and a shell that is not installed would be a setting "
-            "that breaks every session it applies to.\n\n"
+            "the operator's decision. `bash` means the operator's configured shell, which "
+            "is bash unless they chose otherwise, and an image without the chosen shell "
+            "falls back to the deployment's own rather than failing the session.\n\n"
             "`bash` is the fallback because it is today's behaviour and the more capable of "
             "the two, so an outage never turns a working script into a failing one."
         ),
@@ -142,13 +145,16 @@ SETTINGS: tuple[SettingDef, ...] = (
         conservative_values=(False,),
         origin=Origin.PROPOSED,
         origin_note=(
-            "New here. environments-api keeps shell history inside the sandbox for the life "
-            "of the shell and does not write it across sessions."
+            "Not read, and not implementable as described: environments-api's shells are "
+            "non-interactive (commands are piped in, `HISTFILE` is empty), so bash records "
+            "no history and sh has none. Persisting it would mean recording the framed "
+            "command lines, injected credentials included. The service's own command "
+            "records already outlive the shell until the environment is reset or pruned."
         ),
         summary="Whether a shell's command history survives the shell that wrote it.",
         description=(
-            "On, the next session in the same environment can arrow-up through what ran "
-            "before. Off, history dies with the process.\n\n"
+            "On would keep a shell's command history for the next session in the same "
+            "environment. Off, nothing is kept beyond the service's own command records.\n\n"
             "Off is conservative: command history is a second copy of whatever was typed, "
             "including tokens pasted in a hurry, and an outage that started keeping it would "
             "be a record nobody asked for."

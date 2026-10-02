@@ -293,7 +293,7 @@ left open.
 | `user.erasure_mode` | `ErasureMode` behind user-api's `SettingsStore` port | No — see below. |
 | `user.grace_days` | `grace_days`, `USER_API_DEFAULT_GRACE_DAYS` | No — see below. |
 | `user.log_values` | `log_values` behind the same port | No — see below. |
-| `user.default_write_scope` | — | *proposed*: user-api has no per-account default scope. |
+| `user.default_write_scope` | — | Yes. Applies when a write omits `scopes`; held to the token's scope, so a default the token lacks refuses the write rather than widening it. |
 
 **Why erasure is not read from here yet: the sweeper has no token.** settings-api answers
 only when a person's token is presented, and user-api's erasure sweeper reads
