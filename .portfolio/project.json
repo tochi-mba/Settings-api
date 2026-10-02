@@ -1,0 +1,18 @@
+{
+  "$schema": "https://tochi-mba.github.io/schema/project.schema.json",
+  "slug": "settings",
+  "name": "settings",
+  "tagline": "One place a person decides how every service in the family behaves for them.",
+  "description": "Which country music searches resolve against, how long an idle workspace stays up, which model answers, which providers must never see a query. Decisions that belong to the person, lifted out of environment variables that applied to everybody on the box.",
+  "highlights": [
+    "Per-person, per-service settings over HTTP",
+    "settings-client consumed by the other services as a tagged source"
+  ],
+  "stack": ["Python 3.12", "FastAPI"],
+  "category": "service",
+  "family": "lucy",
+  "role": "settings",
+  "status": "active",
+  "order": 140,
+  "display": true
+}
