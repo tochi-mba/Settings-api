@@ -56,6 +56,13 @@ class FakeSettingsClient:
     :attr:`unavailable` on to make every call behave as though settings-api were down --
     which is the case most consuming services forget to test, and the one their users
     notice.
+
+    Profiles are kept apart the way settings-api keeps them. A value seeded with a
+    ``profile`` is returned only by a :meth:`resolve` that names that profile; one seeded
+    without is returned to every resolve. :attr:`asked` records the profile each resolve
+    named, so a test can check that a service asked for the person's profile at all: this
+    fake used to ignore it, and three services that never sent one passed every test while
+    every profile-scoped choice a person made was dropped.
     """
 
     def __init__(
@@ -66,6 +73,7 @@ class FakeSettingsClient:
         self._values: dict[str, dict[str, Value]] = {
             namespace: dict(entries) for namespace, entries in (values or {}).items()
         }
+        self._profile_values: dict[tuple[str, str], dict[str, Value]] = {}
         self._fallbacks: dict[str, dict[str, Fallback]] = {
             namespace: dict(entries) for namespace, entries in (fallbacks or {}).items()
         }
@@ -83,13 +91,25 @@ class FakeSettingsClient:
         self.resolves = 0
         """How many times :meth:`resolve` was called. The assertion in a caching test."""
 
+        self.asked: list[tuple[str, str | None]] = []
+        """Every :meth:`resolve`, as ``(namespace, profile)``: which profile was asked for."""
+
         self.writes: list[tuple[str, str, Value]] = []
         self.forgotten: list[tuple[str, str | None]] = []
         """Every :meth:`forget`, as ``(user_token, namespace)``. The fake caches nothing."""
 
-    def seed(self, namespace: str, values: Mapping[str, Value]) -> None:
-        """Set this person's values for one namespace."""
-        self._values.setdefault(namespace, {}).update(values)
+    def seed(
+        self, namespace: str, values: Mapping[str, Value], *, profile: str | None = None
+    ) -> None:
+        """Set this person's values for one namespace, or for one profile of it.
+
+        With a ``profile``, the values are what settings-api would return for profile-scoped
+        keys when that profile is asked for, and nothing when another profile, or none, is.
+        """
+        if profile is None:
+            self._values.setdefault(namespace, {}).update(values)
+        else:
+            self._profile_values.setdefault((namespace, profile), {}).update(values)
 
     def seed_fallback(self, namespace: str, key: str, fallback: Fallback) -> None:
         """Declare one key's default and outage rule, as the server would."""
@@ -99,8 +119,8 @@ class FakeSettingsClient:
         self, namespace: str, *, user_token: str, profile: str | None = None
     ) -> ResolvedSettings:
         """This person's settings for one namespace, or the configured failure."""
-        del profile
         self.resolves += 1
+        self.asked.append((namespace, profile))
         if namespace in self.rejects:
             status, detail = self.rejects[namespace]
             raise SettingsRejected(status, detail)
@@ -129,9 +149,12 @@ class FakeSettingsClient:
                 ),
             )
 
+        values = dict(self._values.get(namespace, {}))
+        if profile is not None:
+            values.update(self._profile_values.get((namespace, profile), {}))
         return ResolvedSettings(
             namespace=namespace,
-            values=dict(self._values.get(namespace, {})),
+            values=values,
             fallbacks=fallbacks,
             revision=self.revision,
         )
@@ -145,8 +168,11 @@ class FakeSettingsClient:
         user_token: str,
         profile: str | None = None,
     ) -> int:
-        """Record a write and return the new revision."""
-        del user_token, profile
+        """Record a write and return the new revision.
+
+        A write that names a profile lands on that profile, as a profile-scoped key would.
+        """
+        del user_token
         if self.unavailable:
             message = f"settings-api could not be reached to write {namespace}.{key}"
             raise SettingsUnavailable(message)
@@ -155,7 +181,10 @@ class FakeSettingsClient:
             raise SettingsRejected(status, detail)
 
         self.writes.append((namespace, key, value))
-        self._values.setdefault(namespace, {})[key] = value
+        if profile is None:
+            self._values.setdefault(namespace, {})[key] = value
+        else:
+            self._profile_values.setdefault((namespace, profile), {})[key] = value
         self.revision += 1
         return self.revision
 

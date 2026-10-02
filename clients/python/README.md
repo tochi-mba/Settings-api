@@ -14,7 +14,7 @@ It is not published to a package index. Take it from a tagged git source with `u
 dependencies = ["settings-client"]
 
 [tool.uv.sources]
-settings-client = { git = "https://github.com/tochi-mba/Settings-api", subdirectory = "clients/python", tag = "settings-client-v0.2.0" }
+settings-client = { git = "https://github.com/tochi-mba/Settings-api", subdirectory = "clients/python", tag = "settings-client-v0.4.0" }
 ```
 
 It needs Python 3.12 or later and depends only on `httpx`.
@@ -65,9 +65,16 @@ namespace's declared fallbacks, and only then raises.
 from settings_client.testing import FakeSettingsClient, asgi_client
 
 fake = FakeSettingsClient()
-fake.seed("spotify", {"default_market": "PT"})
+fake.seed("spotify", {"default_market": "PT"})                     # every profile
+fake.seed("spotify", {"allow_explicit": False}, profile="family")  # only "family"
 fake.unavailable = True  # the case most services forget to test
 ```
+
+Seed a profile-scoped key **with** its profile, and assert on `fake.asked`, the
+`(namespace, profile)` of every resolve. A value seeded without a profile is returned to
+every resolve, so a service that forgets to pass the person's profile still passes a test
+seeded that way, while in production settings-api would return none of their profile-scoped
+choices.
 
 `FakeSettingsClient` satisfies the same `SettingsClient` protocol as the real client.
 `asgi_client(app, service_token=...)` is the real client talking to an ASGI app in-process,
