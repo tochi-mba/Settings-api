@@ -297,6 +297,57 @@ class TestSingleFlight:
         await client.aclose()
 
 
+class TestLocksDoNotOutliveTheirCallers:
+    """The bug, named: a single-flight lock was kept until its cache entry was evicted. A
+    resolve that failed -- settings-api down, or a grant refused -- cached nothing, so its
+    lock was never evicted either, and with keyring tokens that rotate every few minutes a
+    service in a long outage grew one lock per token for as long as the outage lasted."""
+
+    async def test_a_failed_resolve_leaves_no_lock_behind(self) -> None:
+        recorder = Recorder()
+        recorder.error = httpx.ConnectError("settings-api is down")
+        client = build(recorder)
+
+        for number in range(50):
+            with pytest.raises(SettingsUnavailable):
+                await client.resolve("spotify", user_token=f"token-{number}")
+
+        assert client._flights == {}
+        await client.aclose()
+
+    async def test_a_refused_resolve_leaves_no_lock_behind(self) -> None:
+        recorder = Recorder(status=403)
+        client = build(recorder)
+
+        with pytest.raises(SettingsRejected):
+            await client.resolve("spotify", user_token=TOKEN_A)
+
+        assert client._flights == {}
+        await client.aclose()
+
+    async def test_a_lock_is_kept_while_somebody_is_still_waiting_on_it(self) -> None:
+        recorder = Recorder()
+        held: list[int] = []
+
+        async def slow(request: httpx.Request) -> httpx.Response:
+            recorder.requests.append(request)
+            held.append(len(client._flights))
+            await asyncio.sleep(0)
+            return httpx.Response(200, json=BODY, headers={"ETag": recorder.etag})
+
+        client = HttpSettingsClient(
+            base_url="http://settings.test",
+            service_token=SERVICE_TOKEN,
+            transport=httpx.MockTransport(slow),
+        )
+        await asyncio.gather(*(client.resolve("spotify", user_token=TOKEN_A) for _ in range(5)))
+
+        assert recorder.count == 1, "the four that waited took the first one's answer"
+        assert held == [1]
+        assert client._flights == {}
+        await client.aclose()
+
+
 class TestOutages:
     async def test_a_cached_document_is_served_stale(self) -> None:
         recorder = Recorder()

@@ -14,7 +14,7 @@ It is not published to a package index. Take it from a tagged git source with `u
 dependencies = ["settings-client"]
 
 [tool.uv.sources]
-settings-client = { git = "https://github.com/tochi-mba/Settings-api", subdirectory = "clients/python", tag = "settings-client-v0.4.0" }
+settings-client = { git = "https://github.com/tochi-mba/Settings-api", subdirectory = "clients/python", tag = "settings-client-v0.4.1" }
 ```
 
 It needs Python 3.12 or later and depends only on `httpx`.

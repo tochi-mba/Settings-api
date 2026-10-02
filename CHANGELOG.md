@@ -64,6 +64,12 @@ All notable changes to settings-api are recorded here. The format follows
   page for a broken anchor, a missing asset, an image without alt text or draft text.
 - The repository is attributed to REX Technologies: the LICENSE copyright holder, the package
   author and the README.
+- **settings-client 0.4.1: a lock lives only while somebody is using it.** The
+  single-flight lock for a token, namespace and profile was kept until its cache entry was
+  evicted. A resolve that failed cached nothing, so its lock stayed: during a long outage,
+  or with a refused grant, a service kept one lock per token it had seen, and keyring
+  tokens rotate every few minutes. The last caller out now takes the lock with it.
+  Consumers pin the tag `settings-client-v0.4.1`; nothing else changes.
 - **settings-client 0.4.0: the test fake keeps profiles apart.** `FakeSettingsClient.seed`
   and `set` take a `profile`; a value seeded for a profile is returned only to a resolve that
   names it, and `asked` records the profile each resolve named. The fake used to drop the
