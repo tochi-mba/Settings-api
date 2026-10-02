@@ -92,6 +92,44 @@ class TestTheFake:
         await FakeSettingsClient().aclose()
 
 
+class TestTheFakeKeepsProfilesApart:
+    """The bug, named: the fake dropped the profile a resolve named. Spotify-api, web-search-api
+    and environments-api never sent one, so settings-api never returned any profile-scoped
+    choice a person had made, and every test of theirs passed anyway."""
+
+    async def test_a_profile_value_is_returned_only_to_that_profile(self) -> None:
+        fake = FakeSettingsClient()
+        fake.seed("spotify", {"default_market": "PT"})
+        fake.seed("spotify", {"allow_explicit": False}, profile="family")
+
+        family = await fake.resolve("spotify", user_token="t", profile="family")
+        work = await fake.resolve("spotify", user_token="t", profile="work")
+        none = await fake.resolve("spotify", user_token="t")
+
+        assert dict(family.values) == {"default_market": "PT", "allow_explicit": False}
+        assert dict(work.values) == {"default_market": "PT"}
+        assert dict(none.values) == {"default_market": "PT"}
+
+    async def test_every_resolve_records_the_profile_it_named(self) -> None:
+        fake = FakeSettingsClient()
+
+        await fake.resolve("spotify", user_token="t")
+        await fake.resolve("spotify", user_token="t", profile="work")
+
+        assert fake.asked == [("spotify", None), ("spotify", "work")]
+
+    async def test_a_write_naming_a_profile_lands_on_that_profile(self) -> None:
+        fake = FakeSettingsClient()
+
+        await fake.set("spotify", "repeat_mode", "track", user_token="t", profile="family")
+        await fake.set("spotify", "default_market", "GB", user_token="t")
+
+        family = await fake.resolve("spotify", user_token="t", profile="family")
+        none = await fake.resolve("spotify", user_token="t")
+        assert dict(family.values) == {"default_market": "GB", "repeat_mode": "track"}
+        assert dict(none.values) == {"default_market": "GB"}
+
+
 class TestAsgiClient:
     def test_it_is_the_real_client_over_an_in_process_transport(self) -> None:
         from fastapi import FastAPI
