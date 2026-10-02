@@ -359,11 +359,12 @@ Subordinate to `email_notifications`: with that off, this changes nothing. On is
 
 ## `user`
 
-Five of these six already exist in user-api. ``max_pinned`` and ``search_default_limit``
+All six are read by user-api. ``max_pinned`` and ``search_default_limit``
 are read from here, per request, inside user-api's own caps. ``erasure_mode``,
 ``grace_days`` and ``log_values`` sit behind the ``SettingsStore`` port that was written on
 day one against the arrival of this service, and stay on user-api's own store for now: its
-erasure sweeper has no user token to present here. ``default_write_scope`` is a proposal.
+erasure sweeper has no user token to present here. ``default_write_scope`` is read per
+request, where a write leaves its scopes out.
 
 ``erasure_mode`` is deliberately **not** ``owner_writable_only``, and the reason belongs
 here rather than in a commit message: user-api already exposes ``PUT /v1/user/settings``,
@@ -372,8 +373,6 @@ owner-writable would break that route the day this service is turned on. The per
 still the one deciding -- the write travels through user-api holding that person's own
 token -- and ADR-0004 argues the trade out loud rather than leaving the next reader to
 wonder why the most consequential setting here is not the most protected one.
-
-> **Needs a change in the owning service first:** `default_write_scope`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `user.erasure_mode`
 
@@ -442,12 +441,14 @@ Turned on, the old value is kept and is purged along with its entry, so the prom
 | Default | `null` |
 | Bounds | ≤32 chars, `^[a-z][a-z0-9_]*$`, nullable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. user-api derives an entry's scope from the token's audience and accepts explicit scopes on a write; it has no per-account default. |
+| Origin | existing — user-api reads it per request: a set_field or write_note that omits `scopes` lands in this compartment, held to the token's own scope like a named one; `scopes: []` still means unscoped. |
 | Safe to fall back to | `null` |
 
 Null means unscoped, which is what user-api does today: an entry with no scope is readable by every valid token. Naming a scope here makes new entries land in that compartment instead, for somebody who would rather the default were narrow.
 
 It can only ever *narrow*: a token still cannot write to a scope it does not grant, so setting this to a scope an assistant's token lacks makes that assistant's writes fail rather than making them privileged. Null is the conservative value because it is what every existing entry already assumes, so an outage cannot silently change where writes land.
+
+It applies when a write leaves `scopes` out; an explicit empty list is the writer choosing unscoped and is respected. It also applies when `set_field` replaces a field, because a replace sets the field's scopes, and not to `revise_entry`, where leaving scopes out leaves them alone. A scope the deployment does not configure behaves like one the token lacks.
 
 #### `user.max_pinned`
 
@@ -643,11 +644,12 @@ pages are overwritten. And ``retrieval_trust_floor`` decides whether anything an
 merely *worked out* about somebody may be used without being confirmed -- the difference
 between a store of what you said and a store of what was inferred from it.
 
-Most entries are ``PROPOSED``: memory-api reads its own configuration today and has no
-per-account settings seam. ``docs/catalogue.md`` repeats that per entry, so nobody ships a
-setting believing it already does something.
+memory-api reads ``write_importance_floor`` per request, and the LUCY hub applies the
+retrieval limit and trust floor when it recalls. ``consolidation`` is still a proposal:
+``docs/catalogue.md`` says so per entry, so nobody ships a setting believing it already
+does something.
 
-> **Needs a change in the owning service first:** `write_importance_floor`, `consolidation`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `consolidation`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `memory.retrieval_limit`
 
@@ -692,14 +694,16 @@ It refuses rather than falling back, because there is no safe guess: landing bel
 | --- | --- |
 | Type | `int` |
 | Scope | `account` |
-| Default | `3` |
+| Default | `1` |
 | Bounds | 1-10, operator-clampable |
 | On unavailable | **refuse** |
-| Origin | **proposed** — New here. |
+| Origin | existing — memory-api refuses a new memory whose importance (1 to 10, 5 when the write names none) is below this, with 422 `below-importance-floor`; one ADD below it refuses a whole reconciled batch. A correction is not held to it. When the floor cannot be read, a write that adds a memory is a 503 and nothing is stored. |
 
 Low keeps almost everything and makes the store noisy. High keeps only what matters and quietly loses things you would have wanted.
 
 It refuses rather than falling back: writing nothing during an outage is recoverable, and writing down more about a person than they agreed to is not.
+
+One, the default, keeps everything, which is what memory-api did before anybody could choose: memory-api cannot tell a default from a choice, so a higher default would start refusing memories for people who never set this. A correction is never refused for it: it replaces something already remembered.
 
 #### `memory.recency_half_life_days`
 
@@ -728,7 +732,7 @@ Ranking, not deletion: nothing is removed by getting old, it simply stops coming
 | Default | `on_session_end` |
 | Bounds | `never` / `on_session_end` / `continuous` |
 | On unavailable | **refuse** |
-| Origin | **proposed** — New here. memory-api now runs an idle-merge pass on a deployment-wide clock (`MEMORY_CONSOLIDATE_IDLE_SECONDS`, `MEMORY_CONSOLIDATE_INTERVAL_SECONDS`, zero interval for off); it has no per-account choice of when, and no session-end hook. |
+| Origin | **proposed** — Not read by memory-api. Its idle-merge pass runs in the background on a deployment-wide clock (`MEMORY_CONSOLIDATE_IDLE_SECONDS`, `MEMORY_CONSOLIDATE_INTERVAL_SECONDS`, zero interval for off) with no person's token to read this with, and it has no session-end signal for `on_session_end` to mean anything. Honouring it needs the hub to report a session's end and the pass to read settings without a user token. |
 
 Consolidation merges near-duplicates, writes better summaries for a subject, and decides that two things it learned separately are the same thing. `continuous` keeps the store tidiest and costs the most; `never` leaves it exactly as written.
 
@@ -2660,7 +2664,7 @@ what everybody gets today whenever settings-api was unreachable.
 ``default_profile`` is not repeated here. ``common.default_profile`` answers it for every
 service, environments-api's ``ENVAPI_DEFAULT_PROFILE`` included.
 
-> **Needs a change in the owning service first:** `default_shell`, `persist_history`. Until that change lands, setting these stores the value and changes no behaviour.
+> **Needs a change in the owning service first:** `persist_history`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `environments.idle_environment_hours`
 
@@ -2724,7 +2728,7 @@ Falling back to the cap during an outage means environments-api behaves exactly 
 
 #### `environments.default_shell`
 
-*Which shell a new session starts when the request does not name one.*
+*Which shell a new session starts.*
 
 | | |
 | --- | --- |
@@ -2733,12 +2737,12 @@ Falling back to the cap during an outage means environments-api behaves exactly 
 | Default | `bash` |
 | Bounds | `bash` / `sh` |
 | On unavailable | use default |
-| Origin | **proposed** — New here. environments-api has one deployment-wide `shell_binary`, so it needs to accept a choice between installed shells before this does anything. |
+| Origin | existing — environments-api reads it when a shell opens. `sh` starts the deployment's `ENVAPI_SH_BINARY` (an operator who blanks it turns the choice off); `bash` starts `ENVAPI_SHELL_BINARY`. A chosen shell the host does not have falls back to `ENVAPI_SHELL_BINARY`, is logged, and the shell reports which binary ran. |
 | Safe to fall back to | `bash` |
 
 `sh` is for people whose scripts are meant to be portable and who want to find out when they are not. `bash` is what environments-api starts today.
 
-The choices are deliberately two shells every sandbox image has. A free-text path would be a person choosing which binary runs inside the sandbox, which is the operator's decision, and a shell that is not installed would be a setting that breaks every session it applies to.
+The choices are deliberately two shells every sandbox image has. A free-text path would be a person choosing which binary runs inside the sandbox, which is the operator's decision. `bash` means the operator's configured shell, which is bash unless they chose otherwise, and an image without the chosen shell falls back to the deployment's own rather than failing the session.
 
 `bash` is the fallback because it is today's behaviour and the more capable of the two, so an outage never turns a working script into a failing one.
 
@@ -2753,10 +2757,10 @@ The choices are deliberately two shells every sandbox image has. A free-text pat
 | Default | `false` |
 | Bounds | — |
 | On unavailable | use default |
-| Origin | **proposed** — New here. environments-api keeps shell history inside the sandbox for the life of the shell and does not write it across sessions. |
+| Origin | **proposed** — Not read, and not implementable as described: environments-api's shells are non-interactive (commands are piped in, `HISTFILE` is empty), so bash records no history and sh has none. Persisting it would mean recording the framed command lines, injected credentials included. The service's own command records already outlive the shell until the environment is reset or pruned. |
 | Safe to fall back to | `false` |
 
-On, the next session in the same environment can arrow-up through what ran before. Off, history dies with the process.
+On would keep a shell's command history for the next session in the same environment. Off, nothing is kept beyond the service's own command records.
 
 Off is conservative: command history is a second copy of whatever was typed, including tokens pasted in a hurry, and an outage that started keeping it would be a record nobody asked for.
 

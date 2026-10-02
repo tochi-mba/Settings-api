@@ -8,6 +8,16 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Changed
 
+- **Three more entries are read, and say so:** `user.default_write_scope` (user-api, where
+  a write leaves its scopes out), `memory.write_importance_floor` (memory-api, on every write
+  that adds a memory) and `environments.default_shell` (environments-api, when a shell
+  opens).
+- **`memory.write_importance_floor` defaults to 1, not 3.** memory-api cannot tell a default
+  from a choice, so a default of 3 would have started refusing importance-1 and -2 memories
+  for everybody who never chose. One keeps everything, as memory-api always has.
+- `memory.consolidation` and `environments.persist_history` stay proposals, and their notes
+  now say why: consolidation runs with no person's token and no session-end signal, and the
+  sandbox shells are non-interactive, so there is no history to keep.
 - `spotify.allow_explicit` is documented as implemented: lookup candidates and named
   track URIs are filtered, while album and playlist contexts and resume are not inspected.
 

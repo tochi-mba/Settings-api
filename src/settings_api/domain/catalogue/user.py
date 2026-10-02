@@ -1,10 +1,11 @@
 """``user`` -- what deletion means, and what the change log keeps.
 
-Five of these six already exist in user-api. ``max_pinned`` and ``search_default_limit``
+All six are read by user-api. ``max_pinned`` and ``search_default_limit``
 are read from here, per request, inside user-api's own caps. ``erasure_mode``,
 ``grace_days`` and ``log_values`` sit behind the ``SettingsStore`` port that was written on
 day one against the arrival of this service, and stay on user-api's own store for now: its
-erasure sweeper has no user token to present here. ``default_write_scope`` is a proposal.
+erasure sweeper has no user token to present here. ``default_write_scope`` is read per
+request, where a write leaves its scopes out.
 
 ``erasure_mode`` is deliberately **not** ``owner_writable_only``, and the reason belongs
 here rather than in a commit message: user-api already exposes ``PUT /v1/user/settings``,
@@ -104,10 +105,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         pattern=r"^[a-z][a-z0-9_]*$",
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(None,),
-        origin=Origin.PROPOSED,
+        origin=Origin.EXISTING,
         origin_note=(
-            "New here. user-api derives an entry's scope from the token's audience and "
-            "accepts explicit scopes on a write; it has no per-account default."
+            "user-api reads it per request: a set_field or write_note that omits `scopes` "
+            "lands in this compartment, held to the token's own scope like a named one; "
+            "`scopes: []` still means unscoped."
         ),
         summary="Which compartment a new entry lands in when the writer does not say.",
         description=(
@@ -119,7 +121,12 @@ SETTINGS: tuple[SettingDef, ...] = (
             "grant, so setting this to a scope an assistant's token lacks makes that "
             "assistant's writes fail rather than making them privileged. Null is the "
             "conservative value because it is what every existing entry already assumes, so "
-            "an outage cannot silently change where writes land."
+            "an outage cannot silently change where writes land.\n\n"
+            "It applies when a write leaves `scopes` out; an explicit empty list is the "
+            "writer choosing unscoped and is respected. It also applies when `set_field` "
+            "replaces a field, because a replace sets the field's scopes, and not to "
+            "`revise_entry`, where leaving scopes out leaves them alone. A scope the "
+            "deployment does not configure behaves like one the token lacks."
         ),
     ),
     SettingDef(
