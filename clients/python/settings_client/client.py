@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import httpx
@@ -108,6 +108,14 @@ class SettingsClient(Protocol):
 
 
 @dataclass(slots=True)
+class _Flight:
+    """One token, namespace and profile being fetched: its lock, and who is using it."""
+
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    callers: int = 0
+
+
+@dataclass(slots=True)
 class _Entry:
     """One cached namespace for one token."""
 
@@ -150,7 +158,7 @@ class HttpSettingsClient:
         self._http = httpx.AsyncClient(timeout=timeout_seconds, transport=transport)
         self._entries: dict[tuple[str, str, str], _Entry] = {}
         self._fallbacks: dict[str, Mapping[str, Fallback]] = {}
-        self._locks: dict[tuple[str, str, str], asyncio.Lock] = {}
+        self._flights: dict[tuple[str, str, str], _Flight] = {}
         self._clock = _monotonic
 
     async def resolve(
@@ -186,16 +194,27 @@ class HttpSettingsClient:
             self._touch(key)
             return cached.settings
 
-        async with self._lock_for(key):
-            # Asked again inside the lock: ten callers arriving together on a cold entry
-            # all queue here, and the nine that waited want the answer the first one
-            # fetched rather than a fetch of their own.
-            cached = self._entries.get(key)
-            if cached is not None and self._clock() - cached.validated_at < self._ttl:
-                return cached.settings
-            return await self._fetch(
-                namespace, user_token=user_token, profile=profile, cached=cached
-            )
+        flight = self._flights.setdefault(key, _Flight())
+        flight.callers += 1
+        try:
+            async with flight.lock:
+                # Asked again inside the lock: ten callers arriving together on a cold
+                # entry all queue here, and the nine that waited want the answer the first
+                # one fetched rather than a fetch of their own.
+                cached = self._entries.get(key)
+                if cached is not None and self._clock() - cached.validated_at < self._ttl:
+                    return cached.settings
+                return await self._fetch(
+                    namespace, user_token=user_token, profile=profile, cached=cached
+                )
+        finally:
+            # The last caller out takes the lock with it. Kept until an entry was evicted,
+            # a lock outlived every resolve that failed -- an outage, a refused grant --
+            # because nothing was cached to evict, and with tokens that rotate every few
+            # minutes they piled up for as long as the outage lasted.
+            flight.callers -= 1
+            if not flight.callers:
+                del self._flights[key]
 
     async def set(
         self,
@@ -255,7 +274,6 @@ class HttpSettingsClient:
         stale = [key for key in self._entries if key[0] == user_token]
         for key in stale:
             del self._entries[key]
-            self._locks.pop(key, None)
 
     async def aclose(self) -> None:
         """Release the connection pool."""
@@ -269,14 +287,6 @@ class HttpSettingsClient:
             "Authorization": f"Bearer {self._service_token}",
             USER_TOKEN_HEADER: user_token,
         }
-
-    def _lock_for(self, key: tuple[str, str, str]) -> asyncio.Lock:
-        """The single-flight lock for one token, namespace and profile."""
-        lock = self._locks.get(key)
-        if lock is None:
-            lock = asyncio.Lock()
-            self._locks[key] = lock
-        return lock
 
     async def _fetch(
         self,
@@ -401,7 +411,6 @@ class HttpSettingsClient:
         stale = [key for key in self._entries if key[0] == user_token and key[1] == namespace]
         for key in stale:
             del self._entries[key]
-            self._locks.pop(key, None)
 
     def _remember(self, key: tuple[str, str, str], entry: _Entry) -> None:
         """Cache an entry, evicting the least recently used if we are at the bound.
@@ -414,7 +423,6 @@ class HttpSettingsClient:
         while len(self._entries) > self._max_entries:
             oldest = next(iter(self._entries))
             del self._entries[oldest]
-            self._locks.pop(oldest, None)
 
     def _touch(self, key: tuple[str, str, str]) -> None:
         """Move an existing entry to the most-recently-used end.
