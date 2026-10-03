@@ -14,7 +14,7 @@ It is not published to a package index. Take it from a tagged git source with `u
 dependencies = ["settings-client"]
 
 [tool.uv.sources]
-settings-client = { git = "https://github.com/tochi-mba/Settings-api", subdirectory = "clients/python", tag = "settings-client-v0.4.1" }
+settings-client = { git = "https://github.com/tochi-mba/Settings-api", subdirectory = "clients/python", tag = "settings-client-v0.4.2" }
 ```
 
 It needs Python 3.12 or later and depends only on `httpx`.
@@ -52,12 +52,20 @@ fetch settings during startup, and do not fail to start because settings-api is 
 | Exception | Means |
 | --- | --- |
 | `SettingsRefused` | settings-api is unreachable, and the key you read is one whose default must not be guessed. Raised when the key is **read**, not when the namespace is resolved, so fail only the operation that needs it. |
-| `SettingsUnavailable` | settings-api is unreachable and this client has never seen the namespace, so it knows no defaults. |
+| `SettingsUnavailable` | settings-api is unreachable and this client has never seen the namespace, so it knows no defaults. On a write: the write could not be sent, or was answered with a body that does not say whether it was saved. |
 | `SettingsRejected` | settings-api answered and refused: 401 or 403 for a misconfigured grant or token, 404 for an unknown namespace, and on a write 409 or 422. `.status_code` and `.detail` say which. |
 
 All three derive from `SettingsClientError`. During an outage the client serves this
 token's cached document first, with `stale=True`, then a document built from the
 namespace's declared fallbacks, and only then raises.
+
+An outage is not only a refused connection. A 5xx is one, and so is a 2xx whose body this
+client cannot use: a proxy's HTML page, an empty body, JSON without `settings`, `fallbacks`
+or an integer `revision`, or an `on_unavailable` this version does not know. Each degrades
+exactly as above, so a consuming service answers 503 rather than a `KeyError` becoming a
+500. The client logs a warning on the `settings_client` logger with the status, content
+type, length and what was wrong -- never a value from the body. A document that fails part
+way through teaches the client nothing: its fallbacks are not kept.
 
 ## Testing a consuming service
 

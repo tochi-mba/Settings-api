@@ -64,6 +64,18 @@ All notable changes to settings-api are recorded here. The format follows
   page for a broken anchor, a missing asset, an image without alt text or draft text.
 - The repository is attributed to REX Technologies: the LICENSE copyright holder, the package
   author and the README.
+- **settings-client 0.4.2: an answer the client cannot use is an outage.** A 2xx whose body
+  was not settings-api's document -- a proxy's HTML page, an empty body, JSON without
+  `settings` or `fallbacks`, a `revision` that is not an integer, an `on_unavailable` this
+  version does not know -- raised `KeyError` or `ValueError` out of `resolve`, which every
+  consuming service turned into a 500 where it promises a 503. It now degrades exactly as an
+  unreachable settings-api does: this token's cached document served stale, else the
+  namespace's declared fallbacks, else `SettingsUnavailable`. A document that fails part way
+  through teaches the client no fallbacks. A write answered that way drops the cache and
+  raises `SettingsUnavailable`, because whether it was saved is unknown. Each case logs one
+  warning on the `settings_client` logger with the status, content type, length and what was
+  wrong, and never a value. Consumers pin the tag `settings-client-v0.4.2`; nothing else
+  changes.
 - **settings-client 0.4.1: a lock lives only while somebody is using it.** The
   single-flight lock for a token, namespace and profile was kept until its cache entry was
   evicted. A resolve that failed cached nothing, so its lock stayed: during a long outage,

@@ -32,11 +32,20 @@ person it has never seen -- see :meth:`SettingsClient.resolve`.
 Ten concurrent requests for one person's namespace produce one outbound call. Without it,
 a cold cache under load is a thundering herd pointed at a service that is, by
 construction, on the critical path of every other service in the family.
+
+## An answer this client cannot use is an outage
+
+A 2xx whose body is not the document settings-api sends -- a proxy's HTML page, an empty
+body, JSON without ``settings`` or ``fallbacks``, an ``on_unavailable`` this version does
+not know -- is treated exactly as if settings-api could not be reached, and logged without
+any value in it. Raising ``KeyError`` or ``ValueError`` instead would reach every consuming
+service as a 500, where each of them promises a 503 for an unusable settings-api.
 """
 
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -58,6 +67,20 @@ DEFAULT_MAX_CACHED_TOKENS = 512
 Bounded because a long-running service sees a new token every fifteen minutes per person,
 and an unbounded dictionary keyed on them is a slow leak that only shows up in production.
 """
+
+_log = logging.getLogger("settings_client")
+
+
+class _Unusable(Exception):  # noqa: N818 -- private, and never raised past this module
+    """settings-api answered, and the body is not something this client can use.
+
+    ``reason`` names what was wrong and never carries a value out of the body: a reason is
+    logged, and a setting's value is the person's.
+    """
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
 
 
 @runtime_checkable
@@ -173,7 +196,8 @@ class HttpSettingsClient:
         along. The cache is keyed by token, namespace and profile, so two profiles of
         the same person do not share a resolved document.
 
-        When settings-api cannot be reached:
+        When settings-api cannot be reached, answers 5xx, or answers with a body this client
+        cannot use:
 
         * a cached entry for **this token and profile** is served with ``stale=True``;
         * otherwise, if this client has seen the namespace's fallbacks before, a document
@@ -184,7 +208,8 @@ class HttpSettingsClient:
           :class:`~settings_client.errors.SettingsUnavailable` is raised.
 
         Raises:
-            SettingsUnavailable: settings-api is unreachable and nothing is known.
+            SettingsUnavailable: settings-api is unreachable, or answered with nothing this
+                client can use, and nothing is known.
             SettingsRejected: settings-api answered, and refused -- a namespace this
                 service was not granted, or a user token it may not present.
         """
@@ -236,9 +261,10 @@ class HttpSettingsClient:
             SettingsRejected: settings-api refused -- 403 for a namespace this service was
                 not granted or a setting only the person may change, 409 for a pinned
                 value, 422 for a value the catalogue does not allow or a missing profile.
-            SettingsUnavailable: settings-api could not be reached. A write is never
-                silently dropped and never queued: the caller is told, because the person
-                is standing there having just asked for it.
+            SettingsUnavailable: settings-api could not be reached, or answered with a body
+                that carries no revision, so whether the write landed is unknown. A write
+                is never silently dropped and never queued: the caller is told, because the
+                person is standing there having just asked for it.
         """
         url = f"{self._base_url}/v1/internal/settings/{namespace}/{key}"
         params = {"profile": profile} if profile else None
@@ -256,9 +282,17 @@ class HttpSettingsClient:
         if response.status_code >= httpx.codes.BAD_REQUEST:
             raise SettingsRejected(response.status_code, _detail_of(response))
 
+        # Dropped before the body is read: whatever it says, the write may have landed.
         self._drop_namespace(user_token, namespace)
-        body: dict[str, Any] = response.json()
-        return int(body["revision"])
+        try:
+            return _revision_of(_json_object(response))
+        except _Unusable as unusable:
+            _log_unusable(response, f"the write to {namespace}.{key}", unusable)
+            message = (
+                f"settings-api answered the write to {namespace}.{key} with a body this "
+                "client cannot use, so whether it was saved is unknown"
+            )
+            raise SettingsUnavailable(message) from unusable
 
     def forget(self, user_token: str, namespace: str | None = None) -> None:
         """Stop serving this person's cached settings: one namespace, or every one.
@@ -328,35 +362,32 @@ class HttpSettingsClient:
             # would hide a misconfigured grant behind defaults that happened to work.
             raise SettingsRejected(response.status_code, _detail_of(response))
 
-        return self._store(namespace, user_token, profile, response)
+        try:
+            settings = _document_of(namespace, response)
+        except _Unusable as unusable:
+            # Answered, but not with anything usable: a proxy's login page, an empty body,
+            # a document from a settings-api newer than this client. To the service whose
+            # request this is, that is an outage, and it degrades as one. The cached entry's
+            # clock is left alone, so the next call asks again.
+            _log_unusable(response, f"the {namespace} namespace", unusable)
+            return self._degrade(namespace, cached=cached, why="answered with an unusable body")
+
+        return self._store(namespace, user_token, profile, settings, response)
 
     def _store(
         self,
         namespace: str,
         user_token: str,
         profile: str | None,
+        settings: ResolvedSettings,
         response: httpx.Response,
     ) -> ResolvedSettings:
-        """Parse a successful response, cache it, and remember the fallbacks."""
-        body: dict[str, Any] = response.json()
-        fallbacks = {
-            key: Fallback(
-                default=item["default"],
-                on_unavailable=OnUnavailable(item["on_unavailable"]),
-            )
-            for key, item in body["fallbacks"].items()
-        }
+        """Cache a parsed document, and remember the namespace's fallbacks."""
         # Kept per namespace rather than per token: a default and an outage rule are facts
         # about the deployment, not about a person, so sharing them leaks nothing and is
-        # what lets a cold client behave correctly during an outage.
-        self._fallbacks[namespace] = fallbacks
-
-        settings = ResolvedSettings(
-            namespace=namespace,
-            values=body["settings"],
-            fallbacks=fallbacks,
-            revision=body["revision"],
-        )
+        # what lets a cold client behave correctly during an outage. Only ever a whole
+        # document's: a body that failed to parse halfway taught this client nothing.
+        self._fallbacks[namespace] = settings.fallbacks
         self._remember(
             (user_token, namespace, profile or ""),
             _Entry(
@@ -367,8 +398,13 @@ class HttpSettingsClient:
         )
         return settings
 
-    def _degrade(self, namespace: str, *, cached: _Entry | None) -> ResolvedSettings:
-        """What to serve when settings-api cannot be reached. See :meth:`resolve`."""
+    def _degrade(
+        self, namespace: str, *, cached: _Entry | None, why: str = "could not be reached"
+    ) -> ResolvedSettings:
+        """What to serve when settings-api cannot be reached. See :meth:`resolve`.
+
+        ``why`` completes "settings-api ..." in the error raised when nothing is known.
+        """
         if cached is not None:
             # The person's own most recent values, which are strictly better than any
             # default. Not revalidated, so the clock is left where it is: the next call
@@ -384,7 +420,7 @@ class HttpSettingsClient:
         fallbacks = self._fallbacks.get(namespace)
         if fallbacks is None:
             message = (
-                f"settings-api could not be reached and nothing is known about "
+                f"settings-api {why} and nothing is known about "
                 f"{namespace}; this client has never had a successful response for it"
             )
             raise SettingsUnavailable(message)
@@ -444,6 +480,90 @@ def _monotonic() -> float:
     a clock to be constructed would be one nobody wires up in four lines.
     """
     return time.monotonic()
+
+
+def _document_of(namespace: str, response: httpx.Response) -> ResolvedSettings:
+    """A resolved namespace out of a successful response, checked as far as it is read.
+
+    Every field this client reads is checked before anything is kept, so a body that fails
+    halfway leaves the cache and the learned fallbacks as they were. The values themselves
+    are passed through unchecked: they are the person's, and their types are the catalogue's
+    business rather than this client's.
+
+    Raises:
+        _Unusable: the body is not the document settings-api sends.
+    """
+    body = _json_object(response)
+    values = body.get("settings")
+    if not isinstance(values, dict):
+        message = "'settings' is missing or not an object"
+        raise _Unusable(message)
+    declared = body.get("fallbacks")
+    if not isinstance(declared, dict):
+        message = "'fallbacks' is missing or not an object"
+        raise _Unusable(message)
+    revision = _revision_of(body)
+    return ResolvedSettings(
+        namespace=namespace,
+        values=values,
+        fallbacks={key: _fallback_of(key, item) for key, item in declared.items()},
+        revision=revision,
+    )
+
+
+def _fallback_of(key: str, item: object) -> Fallback:
+    """One key's declared outage rule, or :class:`_Unusable` naming the key and not the value."""
+    if not isinstance(item, dict) or "default" not in item:
+        message = f"the fallback for {key!r} is not an object with a default"
+        raise _Unusable(message)
+    rule = item.get("on_unavailable")
+    if not isinstance(rule, str) or rule not in OnUnavailable:
+        # A rule this version does not know -- a newer settings-api, most likely. Guessing
+        # which of the two it resembles could serve a default the person refused.
+        message = f"the fallback for {key!r} has no on_unavailable this client knows"
+        raise _Unusable(message)
+    return Fallback(default=item["default"], on_unavailable=OnUnavailable(rule))
+
+
+def _json_object(response: httpx.Response) -> dict[str, Any]:
+    """The body as a JSON object, or :class:`_Unusable` saying it is not one."""
+    try:
+        body = response.json()
+    except ValueError:
+        # Covers a decoding failure too: UnicodeDecodeError is a ValueError.
+        message = "the body is not JSON"
+        raise _Unusable(message) from None
+    if not isinstance(body, dict):
+        message = "the body is not a JSON object"
+        raise _Unusable(message)
+    return body
+
+
+def _revision_of(body: dict[str, Any]) -> int:
+    """The ``revision``, which settings-api always sends as an integer."""
+    revision = body.get("revision")
+    # bool is an int to isinstance, and `true` is not a revision.
+    if isinstance(revision, bool) or not isinstance(revision, int):
+        message = "'revision' is missing or not an integer"
+        raise _Unusable(message)
+    return revision
+
+
+def _log_unusable(response: httpx.Response, what: str, unusable: _Unusable) -> None:
+    """Say what came back, and never what was in it.
+
+    The status, the content type, the length and what was wrong: enough to tell a proxy's
+    login page from a settings-api newer than this client, and nothing a person chose.
+    """
+    _log.warning(
+        "settings-api answered %s for %s with a body this client cannot use "
+        "(%s; content-type %s, %d bytes); treating it as unreachable",
+        response.status_code,
+        what,
+        unusable.reason,
+        response.headers.get("Content-Type", "none"),
+        len(response.content),
+    )
 
 
 def _detail_of(response: httpx.Response) -> str:

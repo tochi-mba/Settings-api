@@ -1,6 +1,6 @@
 """What the client promises six services, and the one design it deliberately avoids.
 
-Four properties are pinned here, and each of them is something a consuming service would
+Five properties are pinned here, and each of them is something a consuming service would
 otherwise have to get right for itself:
 
 **The cache is keyed by the token, never by an unverified ``sub``.** That is the
@@ -17,6 +17,10 @@ rather than when the namespace is resolved.
 **A 4xx is not an outage.** A misconfigured grant must surface as an error rather than
 hiding behind defaults that happen to work.
 
+**A 2xx this client cannot use is an outage.** A proxy's page or a document it cannot read
+degrades like an unreachable settings-api, rather than escaping as a ``KeyError`` that a
+consuming service turns into a 500.
+
 The transport is a hand-written :class:`httpx.MockTransport`, not a mocking library: it is
 a real transport serving real responses, so everything above it -- headers, status codes,
 ``If-None-Match`` handling, JSON parsing -- runs for real.
@@ -25,6 +29,7 @@ a real transport serving real responses, so everything above it -- headers, stat
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -468,6 +473,215 @@ class TestOutages:
         client = build(recorder)
         with pytest.raises(SettingsRejected, match="42"):
             await client.resolve("spotify", user_token=TOKEN_A)
+        await client.aclose()
+
+
+def _without(name: str) -> dict[str, Any]:
+    """:data:`BODY` with one top-level field left out."""
+    return {field: value for field, value in BODY.items() if field != name}
+
+
+def _with_fallback(item: object) -> dict[str, Any]:
+    """:data:`BODY` with ``timezone``'s declared fallback replaced by ``item``."""
+    return {**BODY, "fallbacks": {**BODY["fallbacks"], "timezone": item}}
+
+
+UNUSABLE_ANSWERS = [
+    pytest.param(
+        {"status_code": 200, "text": "<html>Sign in to the proxy</html>"},
+        "not JSON",
+        id="a-proxy-page",
+    ),
+    pytest.param({"status_code": 204}, "not JSON", id="an-empty-body"),
+    pytest.param({"status_code": 200, "content": b"\x80\x81"}, "not JSON", id="not-utf8"),
+    pytest.param({"status_code": 200, "json": []}, "not a JSON object", id="an-array"),
+    pytest.param(
+        {"status_code": 200, "json": _without("settings")}, "'settings'", id="no-settings"
+    ),
+    pytest.param(
+        {"status_code": 200, "json": {**BODY, "settings": []}}, "'settings'", id="settings-a-list"
+    ),
+    pytest.param(
+        {"status_code": 200, "json": _without("fallbacks")}, "'fallbacks'", id="no-fallbacks"
+    ),
+    pytest.param(
+        {"status_code": 200, "json": {**BODY, "fallbacks": ["timezone"]}},
+        "'fallbacks'",
+        id="fallbacks-a-list",
+    ),
+    pytest.param(
+        {"status_code": 200, "json": _with_fallback("UTC")},
+        "'timezone' is not an object with a default",
+        id="a-fallback-not-an-object",
+    ),
+    pytest.param(
+        {"status_code": 200, "json": _with_fallback({"on_unavailable": "use_default"})},
+        "'timezone' is not an object with a default",
+        id="a-fallback-with-no-default",
+    ),
+    pytest.param(
+        {"status_code": 200, "json": _with_fallback({"default": "UTC", "on_unavailable": "ask"})},
+        "'timezone' has no on_unavailable this client knows",
+        id="an-unknown-on-unavailable",
+    ),
+    pytest.param(
+        {"status_code": 200, "json": _with_fallback({"default": "UTC"})},
+        "'timezone' has no on_unavailable this client knows",
+        id="no-on-unavailable",
+    ),
+    pytest.param(
+        {"status_code": 200, "json": _with_fallback({"default": "UTC", "on_unavailable": []})},
+        "'timezone' has no on_unavailable this client knows",
+        id="an-on-unavailable-not-a-string",
+    ),
+    pytest.param(
+        {"status_code": 200, "json": _without("revision")}, "'revision'", id="no-revision"
+    ),
+    pytest.param(
+        {"status_code": 200, "json": {**BODY, "revision": "4"}},
+        "'revision'",
+        id="revision-a-string",
+    ),
+    pytest.param(
+        {"status_code": 200, "json": {**BODY, "revision": True}}, "'revision'", id="revision-a-bool"
+    ),
+]
+"""Every shape of answer that is a success by its status and useless by its body.
+
+Each is ``httpx.Response`` keyword arguments and a fragment of the logged reason.
+"""
+
+
+class TestAnUnusableAnswerIsAnOutage:
+    """The bug, named: a 2xx whose body was not settings-api's document -- a proxy's login
+    page, an empty body, JSON without ``settings`` or ``fallbacks``, an ``on_unavailable``
+    this version does not know -- raised ``KeyError`` or ``ValueError`` out of ``resolve``.
+    Every consuming service turned that into a 500, where each of them promises a 503 for a
+    settings-api it cannot use. It now degrades exactly as an unreachable settings-api does,
+    and says what was wrong without saying what was in it."""
+
+    @pytest.mark.parametrize(("answer", "reason"), UNUSABLE_ANSWERS)
+    async def test_a_client_that_knows_nothing_raises_unavailable_and_logs_no_value(
+        self, answer: dict[str, Any], reason: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        caplog.set_level(logging.WARNING, logger="settings_client")
+        recorder = Recorder()
+        recorder.handler = lambda _request: httpx.Response(**answer)
+        client = build(recorder)
+
+        with pytest.raises(SettingsUnavailable, match="unusable body and nothing is known"):
+            await client.resolve("spotify", user_token=TOKEN_A)
+
+        [record] = caplog.records
+        assert record.levelno == logging.WARNING
+        logged = record.getMessage()
+        assert reason in logged
+        assert "the spotify namespace" in logged
+        assert f"answered {answer['status_code']}" in logged
+        # What a person chose and who they are stay out of a log line about a broken proxy.
+        assert "Europe/Lisbon" not in logged
+        assert TOKEN_A not in logged
+        assert SERVICE_TOKEN not in logged
+        await client.aclose()
+
+    @pytest.mark.parametrize(("answer", "reason"), UNUSABLE_ANSWERS)
+    async def test_this_tokens_cached_document_is_served_stale(
+        self, answer: dict[str, Any], reason: str
+    ) -> None:
+        del reason
+        recorder = Recorder()
+        client = build(recorder, ttl_seconds=0)
+        await client.resolve("spotify", user_token=TOKEN_A)
+
+        recorder.handler = lambda _request: httpx.Response(**answer)
+        degraded = await client.resolve("spotify", user_token=TOKEN_A)
+        assert degraded.stale is True
+        assert degraded.values["default_market"] == "PT"
+
+        # The clock was left alone, as for any outage: the next call asks again.
+        recorder.handler = None
+        recovered = await client.resolve("spotify", user_token=TOKEN_A)
+        assert recovered.stale is False
+        await client.aclose()
+
+    @pytest.mark.parametrize(("answer", "reason"), UNUSABLE_ANSWERS)
+    async def test_another_token_gets_the_declared_fallbacks(
+        self, answer: dict[str, Any], reason: str
+    ) -> None:
+        del reason
+        recorder = Recorder(body=REFUSING_BODY, etag='"account-a.2"')
+        client = build(recorder, ttl_seconds=0)
+        await client.resolve("search", user_token=TOKEN_A)
+
+        recorder.handler = lambda _request: httpx.Response(**answer)
+        degraded = await client.resolve("search", user_token=TOKEN_B)
+
+        assert degraded.stale is True
+        assert degraded.revision is None
+        assert degraded["max_content_chars"] == 40_000
+        with pytest.raises(SettingsRefused):
+            degraded["disabled_providers"]
+        await client.aclose()
+
+    async def test_a_half_read_answer_teaches_the_client_nothing(self) -> None:
+        recorder = Recorder(body=REFUSING_BODY, etag='"account-a.2"')
+        client = build(recorder, ttl_seconds=0)
+        await client.resolve("search", user_token=TOKEN_A)
+
+        # The first fallback reads cleanly and would turn a refusal into a default; the
+        # second does not read at all. Keeping the first would have this client serve
+        # "every provider allowed" to a person who disabled one.
+        loosened = {
+            **REFUSING_BODY,
+            "fallbacks": {
+                "disabled_providers": {"default": [], "on_unavailable": "use_default"},
+                "max_content_chars": {"default": 40_000, "on_unavailable": "ask"},
+            },
+        }
+        recorder.handler = lambda _request: httpx.Response(200, json=loosened)
+        degraded = await client.resolve("search", user_token=TOKEN_B)
+
+        assert "disabled_providers" in degraded.refused
+        await client.aclose()
+
+    async def test_a_304_nobody_asked_for_is_unusable_too(self) -> None:
+        recorder = Recorder()
+        # Only a cache in between sends this: the client never revalidates what it lacks.
+        recorder.handler = lambda _request: httpx.Response(304)
+        client = build(recorder)
+        with pytest.raises(SettingsUnavailable, match="unusable body"):
+            await client.resolve("spotify", user_token=TOKEN_A)
+        await client.aclose()
+
+    @pytest.mark.parametrize(
+        "answer",
+        [
+            pytest.param({"text": "<html>Sign in to the proxy</html>"}, id="a-proxy-page"),
+            pytest.param({"json": ["revision", 9]}, id="an-array"),
+            pytest.param({"json": {"changed": [], "unchanged": True}}, id="no-revision"),
+            pytest.param({"json": {"revision": "9"}}, id="revision-a-string"),
+        ],
+    )
+    async def test_a_write_answered_unusably_is_unavailable_and_uncached(
+        self, answer: dict[str, Any], caplog: pytest.LogCaptureFixture
+    ) -> None:
+        caplog.set_level(logging.WARNING, logger="settings_client")
+        recorder = Recorder()
+        client = build(recorder)
+        await client.resolve("spotify", user_token=TOKEN_A)
+
+        recorder.handler = lambda _request: httpx.Response(200, **answer)
+        # The write may have landed, so it is neither reported as saved nor as refused:
+        # the person is told it is unknown, and the cache cannot keep the old value.
+        with pytest.raises(SettingsUnavailable, match="whether it was saved is unknown"):
+            await client.set("spotify", "default_market", "GB", user_token=TOKEN_A)
+        assert "the write to spotify.default_market" in caplog.text
+        assert "GB" not in caplog.text
+
+        recorder.handler = None
+        await client.resolve("spotify", user_token=TOKEN_A)
+        assert recorder.count == 3
+        assert "If-None-Match" not in recorder.requests[2].headers
         await client.aclose()
 
 
