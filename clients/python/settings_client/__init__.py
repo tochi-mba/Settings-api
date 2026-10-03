@@ -50,4 +50,4 @@ __all__ = [
     "Value",
 ]
 
-__version__ = "0.3.0"
+__version__ = "0.4.2"
