@@ -36,7 +36,7 @@ person's own token. There are two, and both are ones where the service that woul
 from changing them is the service that should not be allowed to.
 
 
-**147 settings across 10 namespaces.**
+**169 settings across 10 namespaces.**
 
 ## Contents
 
@@ -45,11 +45,11 @@ from changing them is the service that should not be allowed to.
 - **`user`** (6) — `erasure_mode`, `grace_days`, `log_values`, `default_write_scope`, `max_pinned`, `search_default_limit`
 - **`persona`** (7) — `default_persona`, `recall_default_limit`, `log_values`, `erasure_mode`, `grace_days`, `max_pinned_fields`, `max_pinned_notes`
 - **`memory`** (7) — `retrieval_limit`, `retrieval_trust_floor`, `write_importance_floor`, `recency_half_life_days`, `consolidation`, `erasure_grace_days`, `block_char_limit`
-- **`lucy`** (87) — `model`, `fallback_model`, `thinking`, `max_thinking_tokens`, `temperature`, `response_style`, `formatting`, `emoji`, `vision_enabled`, `max_context_tokens`, `reserve_percent`, `warn_at_percent`, `compaction_trigger_percent`, `history_turns_kept`, `tool_results_kept`, `max_tool_result_tokens`, `render_read_tokens`, `render_preview_tokens`, `render_total_tokens`, `decisions`, `decision_shadow_mode`, `decision_capabilities`, `decision_memory`, `decision_recovery`, `decision_claims`, `decision_keeping`, `decision_timeout_ms`, `decision_max_per_turn`, `max_output_tokens_per_turn`, `max_tool_calls_per_turn`, `max_turn_seconds`, `max_llm_turns`, `max_subagent_turns`, `max_steps_per_plan`, `max_parallel_steps`, `step_timeout_seconds`, `plan_timeout_seconds`, `session_token_budget`, `agent_max_depth`, `agent_max_concurrent`, `agent_result_token_cap`, `agent_wall_clock_seconds`, `agent_message_max_chars`, `agent_message_burst`, `permission_mode`, `approval_policy`, `confirm_outward_actions`, `enabled_capabilities`, `disabled_capabilities`, `memory_write_policy`, `memory_retrieval_limit`, `incognito`, `log_message_content`, `input_policy`, `auto_title`, `session_idle_archive_days`, `workspace_retention_hours`, `stream_thinking`, `notify_on_long_turn`, `long_turn_seconds`, `retry_attempts`, `retry_max_seconds`, `downstream_timeout_seconds`, `prompt_feeds_enabled`, `prompt_hide_personal_feeds`, `prompt_allow_unknown_feed_fields`, `feeds_account`, `feeds_persona`, `feeds_music`, `feeds_workspace`, `feeds_research`, `feeds_account_pinned`, `feeds_persona_identity`, `feeds_persona_notes`, `feeds_music_now_playing`, `feeds_music_device`, `feeds_music_shuffled`, `feeds_music_repeat`, `feeds_music_queue_head`, `feeds_workspace_cwd`, `feeds_workspace_shell`, `feeds_workspace_pid`, `feeds_workspace_shells_running`, `feeds_workspace_sandbox`, `feeds_workspace_git_branch`, `feeds_workspace_last_command`, `feeds_research_backend`
+- **`lucy`** (99) — `model`, `fallback_model`, `thinking`, `max_thinking_tokens`, `temperature`, `response_style`, `formatting`, `emoji`, `vision_enabled`, `ambiguity`, `opinions`, `announce_memory_writes`, `max_context_tokens`, `reserve_percent`, `warn_at_percent`, `compaction_trigger_percent`, `history_turns_kept`, `tool_results_kept`, `max_tool_result_tokens`, `render_read_tokens`, `render_preview_tokens`, `render_total_tokens`, `preferred_capabilities`, `prompt_sections_disabled`, `decisions`, `decision_shadow_mode`, `decision_capabilities`, `decision_memory`, `decision_recovery`, `decision_claims`, `decision_keeping`, `decision_timeout_ms`, `decision_max_per_turn`, `max_output_tokens_per_turn`, `max_tool_calls_per_turn`, `max_turn_seconds`, `max_llm_turns`, `max_subagent_turns`, `max_steps_per_plan`, `max_parallel_steps`, `step_timeout_seconds`, `plan_timeout_seconds`, `session_token_budget`, `workspace_edit_matching`, `agent_max_depth`, `agent_max_concurrent`, `agent_result_token_cap`, `agent_wall_clock_seconds`, `agent_message_max_chars`, `agent_message_burst`, `helper_model`, `permission_mode`, `approval_policy`, `confirm_outward_actions`, `enabled_capabilities`, `disabled_capabilities`, `act_unattended`, `quiet_hours`, `wake_by_default`, `watch_default_minutes`, `memory_write_policy`, `memory_retrieval_limit`, `incognito`, `log_message_content`, `input_policy`, `auto_title`, `session_idle_archive_days`, `workspace_retention_hours`, `stream_thinking`, `notify_on_long_turn`, `long_turn_seconds`, `delete_archived_sessions_after_days`, `retry_attempts`, `retry_max_seconds`, `downstream_timeout_seconds`, `prompt_feeds_enabled`, `prompt_hide_personal_feeds`, `prompt_allow_unknown_feed_fields`, `feeds_account`, `feeds_persona`, `feeds_music`, `feeds_workspace`, `feeds_research`, `feeds_account_pinned`, `feeds_persona_identity`, `feeds_persona_notes`, `feeds_music_now_playing`, `feeds_music_device`, `feeds_music_shuffled`, `feeds_music_repeat`, `feeds_music_queue_head`, `feeds_workspace_cwd`, `feeds_workspace_shell`, `feeds_workspace_pid`, `feeds_workspace_shells_running`, `feeds_workspace_sandbox`, `feeds_workspace_git_branch`, `feeds_workspace_last_command`, `feeds_research_backend`
 - **`spotify`** (8) — `default_market`, `max_batch_size`, `confirm_timeout_seconds`, `job_retention_hours`, `default_device`, `shuffle_on_play`, `repeat_mode`, `allow_explicit`
-- **`search`** (8) — `default_model`, `search_backend`, `disabled_providers`, `max_content_chars`, `safe_search`, `store_query_history`, `default_result_count`, `recency_days`
+- **`search`** (14) — `default_model`, `search_backend`, `disabled_providers`, `max_content_chars`, `safe_search`, `store_query_history`, `default_result_count`, `recency_days`, `language`, `region`, `blocked_domains`, `read_top_pages`, `summary_length`, `research_notes`
 - **`environments`** (7) — `idle_environment_hours`, `idle_shell_minutes`, `max_environments_per_profile`, `default_shell`, `persist_history`, `command_timeout_seconds`, `max_output_bytes`
-- **`github`** (2) — `default_owner`, `default_visibility`
+- **`github`** (6) — `default_owner`, `default_visibility`, `merge_method`, `draft_pull_requests`, `delete_branch_after_merge`, `watch_default_hours`
 
 ## `common`
 
@@ -812,11 +812,13 @@ The split is by what a person is deciding rather than by length, so that the gro
 reader wants is the group they open:
 
 - :mod:`~settings_api.domain.catalogue.lucy.model` -- which model answers and how it sounds
+- :mod:`~settings_api.domain.catalogue.lucy.manner` -- when it asks, offers a view, or says it kept something
 - :mod:`~settings_api.domain.catalogue.lucy.context` -- the window, and what is reclaimed first
 - :mod:`~settings_api.domain.catalogue.lucy.decisions` -- the optional assisted judgments
 - :mod:`~settings_api.domain.catalogue.lucy.limits` -- what one turn or plan may do
 - :mod:`~settings_api.domain.catalogue.lucy.helpers` -- the assistants Lucy starts beneath itself
 - :mod:`~settings_api.domain.catalogue.lucy.permissions` -- what it may do without asking
+- :mod:`~settings_api.domain.catalogue.lucy.unattended` -- what it does when work ends with nobody there
 - :mod:`~settings_api.domain.catalogue.lucy.recall` -- what it keeps about you afterwards
 - :mod:`~settings_api.domain.catalogue.lucy.sessions` -- the conversation as a thing of its own
 - :mod:`~settings_api.domain.catalogue.lucy.reliability` -- waiting on a sibling that is slow
@@ -992,6 +994,58 @@ On is the fallback because it is today's behaviour: an outage adds a decoration,
 On, a screenshot or a photo you attach goes to the provider along with the text. Off, it is never sent: Lucy is told an image was attached and that it may not look at it, which is a better failure than quietly answering about text it could only half understand.
 
 **This refuses rather than falling back.** On is the default because it is how the assistant works, so landing on it during an outage would send a picture to a provider somebody had explicitly decided should not receive their pictures -- and nobody would find out, because the turn would succeed. A refused turn is one you can retry; a screenshot of a document already sent is not recoverable. The refusal only bites on a turn that actually carries an image.
+
+#### `lucy.ambiguity`
+
+*Whether Lucy guesses or asks when a request could mean two things.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `assume_and_say` |
+| Bounds | `assume_and_say` / `ask_first` |
+| On unavailable | use default |
+| Origin | existing — The hub reads it into TurnPolicy.manner. With `ask_first`, the prompt's `preferences` section tells the model to ask which reading was meant, in one question, before acting; the default is the authored rule and adds no text. |
+| Safe to fall back to | `assume_and_say`, `ask_first` |
+
+`assume_and_say` takes the careful reading and says which in one line. `ask_first` costs a round trip and never acts on a wrong guess.
+
+Anything destructive or outward still asks either way, so both values are safe to land on during an outage.
+
+#### `lucy.opinions`
+
+*Whether Lucy offers its own view or keeps it until asked.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `when_they_matter` |
+| Bounds | `when_they_matter` / `only_when_asked` |
+| On unavailable | use default |
+| Origin | existing — The hub reads it into TurnPolicy.manner. With `only_when_asked`, the `preferences` section says to give an opinion only when asked; the default is the authored rule and adds no text. |
+| Safe to fall back to | `when_they_matter`, `only_when_asked` |
+
+`when_they_matter` gives a view once, where it would change the decision. `only_when_asked` does the thing without commentary.
+
+#### `lucy.announce_memory_writes`
+
+*Whether Lucy mentions it when it keeps something about you.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub reads it into TurnPolicy.manner; only a literal false turns it off. Off, the `preferences` section says not to mention a kept note unless asked. |
+| Safe to fall back to | `true` |
+
+Off keeps quietly. What is kept is still yours to read, correct and delete, and `memory_write_policy` still decides whether anything may be kept at all.
+
+On is the transparent side and is what an outage lands on: being told about a note you did not need to hear about costs a clause, and not being told about one you would have objected to is the failure.
 
 #### `lucy.max_context_tokens`
 
@@ -1170,6 +1224,42 @@ Raise it when Lucy keeps picking the wrong item out of a list and having to go b
 The ceiling over the other two: twenty steps that each render inside the read budget still have to share this. Once it is spent the remaining results are rendered as references only, and Lucy is told that is what happened.
 
 This is the number that decides whether a wide plan crowds out the conversation it was meant to serve. Raising it buys detail at the cost of history; lowering it keeps more of what you said and makes Lucy fetch more deliberately.
+
+#### `lucy.preferred_capabilities`
+
+*Capabilities to have ready from the start of a new conversation.*
+
+| | |
+| --- | --- |
+| Type | `str_list` |
+| Scope | `profile` |
+| Default | `[]` |
+| Bounds | ≤16 items, items ≤48 chars |
+| On unavailable | use default |
+| Origin | existing — The hub ranks ready capabilities by what the conversation used, then this list, then its built-in order (packs/registry.py choose_bound), so the prompt, the plan schema and the executor agree on what is bound. |
+| Safe to fall back to | `[]` |
+
+When more capabilities are connected than one turn holds at once, these are held first, in this order, after the ones the conversation has already used. The rest stay one `capabilities.use` away.
+
+It only reorders what is ready: it never turns on one that is off or not connected, and an empty list is the built-in order.
+
+#### `lucy.prompt_sections_disabled`
+
+*Parts of Lucy's standing instructions this profile leaves out.*
+
+| | |
+| --- | --- |
+| Type | `str_list` |
+| Scope | `profile` |
+| Default | `[]` |
+| Bounds | ≤6 items, items ≤16 chars |
+| On unavailable | use default |
+| Origin | existing — The hub leaves the named sections out of the standing prompt and out of the window it counts, for the main turn, its helpers and GET /context. It accepts behaviour, lessons, helpers, workspace, memory and context, ignores any other name, and its settings.set refuses this key whatever settings-api says. |
+| Safe to fall back to | `[]` |
+
+Each part costs tokens on every turn. Leave out `workspace` if you never use the sandbox, `helpers` if you never want them. Any of `behaviour`, `lessons`, `helpers`, `workspace`, `memory` and `context` may be listed; the tool rules and the safety rules can never be left out, and a name that cannot is ignored rather than failing the turn.
+
+Empty, the default and what an outage lands on, sends every part, which only adds guidance. No assistant may change it: it is the model's own instructions.
 
 #### `lucy.decisions`
 
@@ -1493,6 +1583,24 @@ Set it comfortably above the step timeout. Setting it below means the plan is ab
 
 Counted across Lucy and every helper it starts, so a fan-out cannot spend past it by splitting the work up. Lucy warns as it approaches and stops at it.
 
+#### `lucy.workspace_edit_matching`
+
+*How closely a file edit must match the text Lucy quoted before it is applied.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `fuzzy` |
+| Bounds | `exact` / `whitespace` / `fuzzy` |
+| On unavailable | use default |
+| Origin | existing — The hub's `workspace.edit` stops its exact, whitespace, fuzzy ladder at the chosen rung (workspace/text.py) and refuses a looser near miss with the nearest difference, so the model re-reads the file. |
+| Safe to fall back to | `fuzzy`, `whitespace`, `exact` |
+
+`exact` applies only to the text as written. `whitespace` also forgives indentation and spacing. `fuzzy`, the default, also accepts a close likeness. Anything looser than you allow is refused, and Lucy re-reads the file.
+
+Every value is safe to land on: every applied edit says which rung matched, and an edit against a file that changed since it was read is refused whatever this says.
+
 #### `lucy.agent_max_depth`
 
 *How many levels of helper Lucy may start beneath itself.*
@@ -1597,6 +1705,24 @@ Two models politely acknowledging each other is the default failure of a message
 
 Raise it for work where helpers genuinely coordinate step by step. Keep it low if a fan-out has ever turned into a conversation between the helpers about the conversation between the helpers.
 
+#### `lucy.helper_model`
+
+*Which model helpers run on, as provider:model. Null means the conversation's.*
+
+| | |
+| --- | --- |
+| Type | `str` |
+| Scope | `profile` |
+| Default | `null` |
+| Bounds | ≤128 chars, `^[a-z0-9][a-z0-9-]*:[A-Za-z0-9][A-Za-z0-9._-]*$`, nullable |
+| On unavailable | use default |
+| Origin | existing — The hub runs every helper on it (agents/runtime.py), falling back to the conversation's model with a notice in the helper's report when it cannot be built, and retrying once on the conversation's model when it is unavailable. |
+| Safe to fall back to | `null` |
+
+A cheaper or faster model for the helpers a conversation starts, while the conversation keeps yours: reading files, checking a claim, searching. It never changes `model`.
+
+A helper model this deployment cannot run, or one that is down, falls back to the conversation's model, and the helper's report says which answered. Null is what an outage lands on: helpers run on the model you already chose.
+
 #### `lucy.permission_mode`
 
 *Whether Lucy asks before doing something that changes the world.*
@@ -1682,6 +1808,77 @@ Empty means Lucy offers whatever is connected and stays quiet about the rest. Na
 A disabled capability is not offered and not mentioned. Lucy is told it is switched off rather than simply not seeing it, so that it stops suggesting the thing instead of forgetting the thing exists.
 
 **This refuses rather than falling back.** An empty list is the default because that is how Lucy works at all, so landing on it during an outage would re-enable something the person turned off -- and nobody would find out, because the turn would succeed.
+
+#### `lucy.act_unattended`
+
+*Whether a turn Lucy opens on her own may act for you, or only report.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | **refuse** |
+| Origin | existing — The hub reads it into TurnPolicy.act_unattended. Off, a watch or check-in records no standing consent, consent recorded before it was turned off is not used, and the tool result tells the model the woken turn may only report. Refused, it reads as off. |
+
+On, a watch or check-in that wakes the conversation records standing consent you can see and revoke, so the turn it opens can finish what you asked -- merge the pull request once CI is green. Off, that turn says what happened and asks before doing anything.
+
+On is what Lucy always did, and it is the permissive value, so an outage refuses rather than guessing: a turn that cannot read this does not act. No assistant may change it, with approval or without.
+
+#### `lucy.quiet_hours`
+
+*Hours, on your clock, when Lucy opens no turn on her own.*
+
+| | |
+| --- | --- |
+| Type | `str` |
+| Scope | `profile` |
+| Default | `` |
+| Bounds | ≤11 chars, `^$|^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$` |
+| On unavailable | use default |
+| Origin | existing — The hub reads it into TurnPolicy.quiet_hours, on the person's `common.timezone`. A wake inside the window is held back as a durable check-in due when it closes; the ending's event and live-block line still go out at once. |
+| Safe to fall back to | `` |
+
+`HH:MM-HH:MM` in your time zone, and it may wrap midnight: `23:00-07:00`. Empty means none. An ending inside the window is still announced where you can see it; only the turn that tells you waits until the window closes, and it survives a restart.
+
+A window whose start and end are the same minute is no window -- 'quiet all day' is `wake_by_default` turned off. An outage falls back to none: a message that arrives at night is an annoyance, and one that never arrives is the failure.
+
+#### `lucy.wake_by_default`
+
+*Whether a watch wakes the conversation when it fires, unless told otherwise.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `true` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub reads it into TurnPolicy.wake_by_default, as what `watch.start` and `repos.watch` do when the model passes no `wake`; the schema says which default applies. |
+| Safe to fall back to | `true`, `false` |
+
+Off, a fired watch waits for the next time you talk, and its result is in the live block then. A watch the model starts with `wake` on still wakes, because you asked for that one.
+
+Both values are safe to land on: neither grants anything, and a woken turn is still bound by `act_unattended` and `quiet_hours`.
+
+#### `lucy.watch_default_minutes`
+
+*How long a watch keeps looking when nobody said how long.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `5` |
+| Bounds | 1-60, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub reads it into TurnPolicy.watch_default_minutes, as the lifetime of a `watch.start` that names no `for_seconds`. Repository watches have their own default, `github.watch_default_hours`. |
+| Safe to fall back to | `5` |
+
+A watch never lives past an hour. Expiry is a notice, not a failure: the watch says it stopped looking and what it last saw.
+
+Five minutes is what Lucy always did, and the shorter side is the safe one: a watch that expires early reports and does nothing extra.
 
 #### `lucy.memory_write_policy`
 
@@ -1868,6 +2065,24 @@ On is conservative: a notice somebody did not want is an annoyance, and abandoni
 Only meaningful with `notify_on_long_turn` on. Sixty seconds is roughly where a person stops assuming the answer is nearly there and starts wondering whether anything is happening.
 
 Lower it if you would rather hear early and often; raise it if the work you do is routinely slow and the notices have become noise. It says nothing about when a turn is stopped -- that is `max_turn_seconds`, and this one only talks.
+
+#### `lucy.delete_archived_sessions_after_days`
+
+*How many days an archived conversation is kept before it is deleted. 0 is never.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `account` |
+| Default | `0` |
+| Bounds | 0-3650, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — The hub reads it when conversations are listed (sessions/retention.py): it deletes at most ten per listing, each archived and untouched for this many days, never one with an unfinished turn, a running helper or a waiting watch. Each deletion is audited, and the conversation's files and workspace folder go too. |
+| Safe to fall back to | `0` |
+
+Archiving only hides a conversation; this is for when you want old transcripts actually gone. Deletion cannot be undone: the transcript, its files and its workspace folder go. Memories are kept, because they are yours to manage separately.
+
+Only a conversation archived that long *and* untouched that long is deleted, and never one with anything still running. Zero, the default and what an outage lands on, deletes nothing. One value for the account, because conversations are listed across every profile at once. No assistant may change it.
 
 #### `lucy.retry_attempts`
 
@@ -2496,6 +2711,12 @@ changes ordering, not sources. And ``safe_search`` exists today only as a per-re
 boolean on its request schema, with no server-side setting at all, so the three-way choice
 below needs a change there before it means anything.
 
+The last six shape a search a request leaves unsaid: its language and region, the
+sites a person never wants to see, how many pages a summary is written from, how long
+the summary is, and the standing guidance every summary follows. ``research_notes`` is
+prompt text that reaches a model on every summary, so no assistant may write it: one
+injected page could otherwise plant standing instructions for every search after it.
+
 > **Needs a change in the owning service first:** `store_query_history`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `search.default_model`
@@ -2645,6 +2866,106 @@ Eight is a typical default and the fallback, so an outage neither floods the pro
 Null means no recency filter, which is what the service does today and is therefore the conservative fallback: an outage does not hide a year-old page somebody needed. A number of 1 means 'today', 7 a week, 365 a year.
 
 This is a search preference, not a prompt line. Which backend is in force in the live block is Lucy's `feeds_research_backend`.
+
+#### `search.language`
+
+*The language search results come back in, when a search does not say.*
+
+| | |
+| --- | --- |
+| Type | `str` |
+| Scope | `profile` |
+| Default | `en` |
+| Bounds | ≤8 chars, `^[a-z]{2,3}(?:-[a-z0-9]{2,4})?$` |
+| On unavailable | use default |
+| Origin | existing — Read by web-search-api as the language a query is run in when the request names none (before, always `en`). |
+| Safe to fall back to | `en` |
+
+A language code such as `fr` or `pt-br`. A search that names a language uses that one instead. English is what an outage lands on, and what the service always used.
+
+#### `search.region`
+
+*The country search results are ranked for, when a search does not say.*
+
+| | |
+| --- | --- |
+| Type | `str` |
+| Scope | `profile` |
+| Default | `us` |
+| Bounds | ≤8 chars, `^[a-z]{2}$` |
+| On unavailable | use default |
+| Origin | existing — Read by web-search-api as the country a query is ranked for when the request names none (before, always `us`). |
+| Safe to fall back to | `us` |
+
+A two-letter country code such as `gb` or `ng`, so a search like 'plumber near me' finds local results. A search that names a region uses that one instead.
+
+#### `search.blocked_domains`
+
+*Sites whose search results you never see.*
+
+| | |
+| --- | --- |
+| Type | `str_list` |
+| Scope | `account` |
+| Default | `[]` |
+| Bounds | ≤100 items, items ≤253 chars |
+| On unavailable | use default |
+| Origin | existing — Read by web-search-api, which drops results whose host is one of these or a subdomain of one before any page is read or summarised. A query restricted to one of these sites, and a page named to be read directly, are not blocked. |
+| Safe to fall back to | `[]` |
+
+Results from these sites, and from their subdomains, are removed from every search before anything is read or summarised. A search you limit to one of these sites still searches it, because you asked for that site.
+
+An assistant may add one only with your approval: a domain added quietly is a source quietly hidden from your research. An outage falls back to none blocked.
+
+#### `search.read_top_pages`
+
+*How many top result pages each search summary is written from.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `0` |
+| Bounds | 0-10, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — Read by web-search-api when a summarised search does not say whether to read pages, or asks for pages without a count. An explicit request wins, and a search that is not summarised reads no page it did not ask for. |
+| Safe to fall back to | `0` |
+
+Zero, the default, writes a summary from titles and snippets alone, which is fast. Higher reads the top pages themselves first: slower, and a summary written from what the pages say rather than what their snippets suggest.
+
+#### `search.summary_length`
+
+*How long research summaries are.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `standard` |
+| Bounds | `brief` / `standard` / `detailed` |
+| On unavailable | use default |
+| Origin | existing — Read by web-search-api for search, scrape and summarize alike. `standard` is the summary prompt as it always was; the other two change its length rule only. |
+| Safe to fall back to | `standard`, `brief`, `detailed` |
+
+`brief` is one or two sentences and at most three key points. `standard` is two to five sentences. `detailed` is five to ten sentences and at most ten key points.
+
+#### `search.research_notes`
+
+*Standing guidance every research summary follows.*
+
+| | |
+| --- | --- |
+| Type | `str` |
+| Scope | `profile` |
+| Default | `` |
+| Bounds | ≤2000 chars |
+| On unavailable | use default |
+| Origin | existing — Read by web-search-api and added after a request's own notes in the summary prompt, framed as what to focus on rather than as a source of facts, within the service's 4,000-character notes limit. |
+| Safe to fall back to | `` |
+
+Such as 'prefer primary sources and flag sponsored content'. It steers what a summary pays attention to, never what counts as fact, and it follows any notes a single search gives.
+
+Only you can change it. It is text a model reads on every summary, so an assistant that could write it could leave instructions for every search after.
 
 ## `environments`
 
@@ -2812,9 +3133,13 @@ asked to "make a repo for this" names a repository and nothing else; these two s
 what the person would have said if asked, so the repository lands under the right account
 and is not public by accident.
 
-Both are profile-scoped on purpose: a `work` profile usually creates under an organisation
-and a `personal` one under the person's own login, and one value for both would be wrong
-for one of them.
+Every one is profile-scoped on purpose: a `work` profile usually creates under an
+organisation and merges by its rules, and a `personal` one under the person's own login
+and habits, and one value for both would be wrong for one of them.
+
+``merge_method`` refuses rather than falls back. Squashing on a repository whose owner
+merges or rebases rewrites how their history lands, and that cannot be cleanly undone, so
+an outage makes a merge that names no method a question rather than a guess.
 
 #### `github.default_owner`
 
@@ -2849,3 +3174,74 @@ This does not grant anything. Creating under an organisation still needs the con
 | Safe to fall back to | `private` |
 
 `private` by default and on any outage, because a repository made public by mistake has been published, and making it private again does not unpublish it. `internal` exists only for organisations on GitHub Enterprise; GitHub refuses it anywhere else, and the refusal reaches the person as such.
+
+#### `github.merge_method`
+
+*How Lucy merges a pull request when you did not say: merge, squash or rebase.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `squash` |
+| Bounds | `merge` / `squash` / `rebase` |
+| On unavailable | **refuse** |
+| Origin | existing — Read by the lucy hub as the method of `repos.merge` when the request names none (before, a hard-coded squash). If it cannot be read, a merge that names no method is refused and the model is told to ask. |
+
+`squash`, the default, is what Lucy always did. `merge` keeps every commit and adds a merge commit; `rebase` replays the commits onto the base branch without one. A request that names a method always wins, and GitHub still refuses a method the repository does not allow.
+
+This refuses rather than falls back. A merge is shared history and cannot be cleanly undone, so when this cannot be read Lucy does not guess squash on a repository whose owner merges or rebases: it asks which.
+
+#### `github.draft_pull_requests`
+
+*Whether pull requests Lucy opens start as drafts unless you say otherwise.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — Read by the lucy hub as `draft` on `repos.openPull` when the request does not say (before, not sent, so GitHub's default of ready applied). |
+| Safe to fall back to | `false`, `true` |
+
+Off by default: a pull request opens ready for review, as it always did, and reviewers are notified. On opens it as a draft, so nobody is asked to review until you mark it ready. A request that says draft or ready always wins.
+
+Both are safe to land on: opening a pull request is already something you approve, and its draft state can be changed afterwards.
+
+#### `github.delete_branch_after_merge`
+
+*Whether Lucy deletes a pull request's branch after merging it, unless you say.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — Read by the lucy hub as `delete_branch` on `repos.merge` when the request does not say (before, always kept). When this setting is what deleted a branch, the merge step says so. |
+| Safe to fall back to | `false` |
+
+Off by default: the branch is kept after a merge, as it always was. On deletes the head branch once the pull request has merged, so merged branches stop piling up; GitHub can restore it from the pull request page. A request that says keep or delete always wins.
+
+An outage falls back to off, because keeping a branch is the side that needs no undoing.
+
+#### `github.watch_default_hours`
+
+*How many hours Lucy keeps watching a repository when you did not say.*
+
+| | |
+| --- | --- |
+| Type | `int` |
+| Scope | `profile` |
+| Default | `1` |
+| Bounds | 1-168, operator-clampable |
+| On unavailable | use default |
+| Origin | existing — Read by the lucy hub as the lifetime of `repos.watch` when the request names no `for_seconds` (before, an hour). The hub holds it between 1 and 168. |
+| Safe to fall back to | `1` |
+
+One hour by default, which is what Lucy always did. Reviews and slow CI often take longer, so a longer default keeps 'tell me when it is green' from lapsing. A week at most, and a request that names how long always wins.
+
+A watch that wakes the conversation holds standing consent for its lifetime plus fifteen minutes, so a longer watch is a longer consent, revocable at any time. An outage falls back to an hour: a shorter watch expires, reports, and does nothing extra.

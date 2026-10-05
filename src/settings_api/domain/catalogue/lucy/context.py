@@ -15,7 +15,14 @@ rather than something already done for them.
 from __future__ import annotations
 
 from settings_api.domain.catalogue.lucy.namespace import NAMESPACE
-from settings_api.domain.types import OnUnavailable, Origin, SettingDef, SettingScope, SettingType
+from settings_api.domain.types import (
+    AgentAccess,
+    OnUnavailable,
+    Origin,
+    SettingDef,
+    SettingScope,
+    SettingType,
+)
 
 SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
@@ -251,6 +258,60 @@ SETTINGS: tuple[SettingDef, ...] = (
             "This is the number that decides whether a wide plan crowds out the conversation "
             "it was meant to serve. Raising it buys detail at the cost of history; lowering "
             "it keeps more of what you said and makes Lucy fetch more deliberately."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="preferred_capabilities",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.STR_LIST,
+        default=[],
+        max_items=16,
+        max_item_chars=48,
+        agent_writable=AgentAccess.WITH_APPROVAL,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=([],),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub ranks ready capabilities by what the conversation used, then this list, "
+            "then its built-in order (packs/registry.py choose_bound), so the prompt, the plan "
+            "schema and the executor agree on what is bound."
+        ),
+        summary="Capabilities to have ready from the start of a new conversation.",
+        description=(
+            "When more capabilities are connected than one turn holds at once, these are held "
+            "first, in this order, after the ones the conversation has already used. The rest "
+            "stay one `capabilities.use` away.\n\n"
+            "It only reorders what is ready: it never turns on one that is off or not "
+            "connected, and an empty list is the built-in order."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="prompt_sections_disabled",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.STR_LIST,
+        default=[],
+        max_items=6,
+        max_item_chars=16,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=([],),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub leaves the named sections out of the standing prompt and out of the "
+            "window it counts, for the main turn, its helpers and GET /context. It accepts "
+            "behaviour, lessons, helpers, workspace, memory and context, ignores any other "
+            "name, and its settings.set refuses this key whatever settings-api says."
+        ),
+        summary="Parts of Lucy's standing instructions this profile leaves out.",
+        description=(
+            "Each part costs tokens on every turn. Leave out `workspace` if you never use the "
+            "sandbox, `helpers` if you never want them. Any of `behaviour`, `lessons`, "
+            "`helpers`, `workspace`, `memory` and `context` may be listed; the tool rules and "
+            "the safety rules can never be left out, and a name that cannot is ignored rather "
+            "than failing the turn.\n\n"
+            "Empty, the default and what an outage lands on, sends every part, which only adds "
+            "guidance. No assistant may change it: it is the model's own instructions."
         ),
     ),
 )

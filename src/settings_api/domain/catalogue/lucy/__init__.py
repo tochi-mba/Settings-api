@@ -32,11 +32,13 @@ The split is by what a person is deciding rather than by length, so that the gro
 reader wants is the group they open:
 
 - :mod:`~settings_api.domain.catalogue.lucy.model` -- which model answers and how it sounds
+- :mod:`~settings_api.domain.catalogue.lucy.manner` -- when it asks, offers a view, or says it kept something
 - :mod:`~settings_api.domain.catalogue.lucy.context` -- the window, and what is reclaimed first
 - :mod:`~settings_api.domain.catalogue.lucy.decisions` -- the optional assisted judgments
 - :mod:`~settings_api.domain.catalogue.lucy.limits` -- what one turn or plan may do
 - :mod:`~settings_api.domain.catalogue.lucy.helpers` -- the assistants Lucy starts beneath itself
 - :mod:`~settings_api.domain.catalogue.lucy.permissions` -- what it may do without asking
+- :mod:`~settings_api.domain.catalogue.lucy.unattended` -- what it does when work ends with nobody there
 - :mod:`~settings_api.domain.catalogue.lucy.recall` -- what it keeps about you afterwards
 - :mod:`~settings_api.domain.catalogue.lucy.sessions` -- the conversation as a thing of its own
 - :mod:`~settings_api.domain.catalogue.lucy.reliability` -- waiting on a sibling that is slow
@@ -63,11 +65,13 @@ from settings_api.domain.catalogue.lucy import (
     feeds,
     helpers,
     limits,
+    manner,
     model,
     permissions,
     recall,
     reliability,
     sessions,
+    unattended,
 )
 from settings_api.domain.catalogue.lucy.namespace import NAMESPACE as NAMESPACE
 
@@ -76,11 +80,13 @@ if TYPE_CHECKING:
 
 SETTINGS: tuple[SettingDef, ...] = (
     *model.SETTINGS,
+    *manner.SETTINGS,
     *context.SETTINGS,
     *decisions.SETTINGS,
     *limits.SETTINGS,
     *helpers.SETTINGS,
     *permissions.SETTINGS,
+    *unattended.SETTINGS,
     *recall.SETTINGS,
     *sessions.SETTINGS,
     *reliability.SETTINGS,

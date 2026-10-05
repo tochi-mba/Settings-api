@@ -6,6 +6,18 @@ All notable changes to settings-api are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Every setting the family reads is in the catalogue.** Twenty-two keys the services already
+  read had no entry, so a person could not set any of them: twelve in `lucy` (how Lucy works
+  with a person, which prompt sections it sends, the helper model, deleting archived
+  conversations, preferred capabilities, edit matching, and when it acts on its own), six in
+  `search` (language, region, blocked domains, pages read, summary length, research notes) and
+  four in `github` (merge method, draft pull requests, deleting merged branches, watch length).
+  `lucy.act_unattended` and `github.merge_method` refuse rather than fall back;
+  `lucy.prompt_sections_disabled`, `lucy.delete_archived_sessions_after_days` and
+  `search.research_notes` may never be written by an assistant. The catalogue holds 169.
+
 ### Changed
 
 - **Three more entries are read, and say so:** `user.default_write_scope` (user-api, where

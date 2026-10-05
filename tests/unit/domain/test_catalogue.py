@@ -39,11 +39,11 @@ EXPECTED_COUNTS = {
     "user": 6,
     "persona": 7,
     "memory": 7,
-    "lucy": 87,
+    "lucy": 99,
     "spotify": 8,
-    "search": 8,
+    "search": 14,
     "environments": 7,
-    "github": 2,
+    "github": 6,
 }
 
 PROFILE_SCOPED = frozenset(
@@ -60,6 +60,10 @@ PROFILE_SCOPED = frozenset(
         "environments.default_shell",
         "github.default_owner",
         "github.default_visibility",
+        "github.merge_method",
+        "github.draft_pull_requests",
+        "github.delete_branch_after_merge",
+        "github.watch_default_hours",
         "environments.persist_history",
         "environments.command_timeout_seconds",
         "persona.recall_default_limit",
@@ -68,7 +72,23 @@ PROFILE_SCOPED = frozenset(
         "search.safe_search",
         "search.default_result_count",
         "search.recency_days",
+        "search.language",
+        "search.region",
+        "search.read_top_pages",
+        "search.summary_length",
+        "search.research_notes",
         "lucy.model",
+        "lucy.helper_model",
+        "lucy.ambiguity",
+        "lucy.opinions",
+        "lucy.announce_memory_writes",
+        "lucy.prompt_sections_disabled",
+        "lucy.preferred_capabilities",
+        "lucy.workspace_edit_matching",
+        "lucy.act_unattended",
+        "lucy.quiet_hours",
+        "lucy.wake_by_default",
+        "lucy.watch_default_minutes",
         "lucy.fallback_model",
         "lucy.thinking",
         "lucy.temperature",
@@ -150,6 +170,16 @@ READ_BY_A_SERVICE = frozenset(
         "environments.max_environments_per_profile",
         "github.default_owner",  # the hub, as the repos pack's owner for a new repository
         "github.default_visibility",  # the hub, as its visibility
+        "github.merge_method",  # the hub, as the repos pack's merge habits
+        "github.draft_pull_requests",
+        "github.delete_branch_after_merge",
+        "github.watch_default_hours",
+        "search.language",  # web-search-api, for what a request leaves unsaid
+        "search.region",
+        "search.blocked_domains",
+        "search.read_top_pages",
+        "search.summary_length",
+        "search.research_notes",
         "persona.default_persona",  # persona-api, for `@default`
         "persona.log_values",
         "persona.erasure_mode",
@@ -262,7 +292,7 @@ class TestTheCatalogueAsAWhole:
         assert {
             namespace: len(entries) for namespace, entries in CATALOGUE.items()
         } == EXPECTED_COUNTS
-        assert len(BY_QUALIFIED) == sum(EXPECTED_COUNTS.values()) == 147
+        assert len(BY_QUALIFIED) == sum(EXPECTED_COUNTS.values()) == 169
 
     def test_profile_scoped_settings_are_exactly_this_set(self) -> None:
         # Exclusive scopes, declared on the entry. A setting nobody thought about stays
@@ -320,6 +350,10 @@ class TestTheCatalogueAsAWhole:
             # would succeed, which is why nobody would find out.
             "lucy.vision_enabled",
             "spotify.allow_explicit",
+            # Acting on a standing instruction with nobody there, and how shared history
+            # lands: guessing the permissive side of either cannot be taken back.
+            "lucy.act_unattended",
+            "github.merge_method",
         }
 
     def test_the_common_and_namespace_collision_is_the_one_that_is_meant(self) -> None:
@@ -371,6 +405,13 @@ class TestTheCatalogueAsAWhole:
             "lucy.temperature",
             "lucy.notify_on_long_turn",
             "lucy.long_turn_seconds",
+            # Which language and country results come in, how many pages a summary
+            # reads and how long it is: taste, with nothing about the person going
+            # anywhere new and nothing an assistant may do widened.
+            "search.language",
+            "search.region",
+            "search.read_top_pages",
+            "search.summary_length",
         }
 
     def test_the_settings_an_assistant_may_only_propose_are_the_prompt_feed_ones(self) -> None:
@@ -383,6 +424,26 @@ class TestTheCatalogueAsAWhole:
             "lucy.prompt_feeds_enabled",
             "lucy.prompt_hide_personal_feeds",
             "lucy.auto_title",
+            # Habits a person states in conversation ('ask me when it's ambiguous',
+            # 'always rebase', 'run helpers on something cheaper'). Each changes how
+            # future work goes, so the person confirms that change; none of them lowers a
+            # floor, which is why `act_unattended`, `prompt_sections_disabled`,
+            # `delete_archived_sessions_after_days` and `research_notes` are not here.
+            "lucy.ambiguity",
+            "lucy.opinions",
+            "lucy.announce_memory_writes",
+            "lucy.helper_model",
+            "lucy.preferred_capabilities",
+            "lucy.workspace_edit_matching",
+            "lucy.quiet_hours",
+            "lucy.wake_by_default",
+            "lucy.watch_default_minutes",
+            "github.merge_method",
+            "github.draft_pull_requests",
+            "github.delete_branch_after_merge",
+            "github.watch_default_hours",
+            # A domain added quietly is a source quietly hidden from somebody's research.
+            "search.blocked_domains",
         } | {entry.qualified for entry in CATALOGUE["lucy"] if entry.key.startswith("feeds_")}
 
     def test_prompt_feed_toggles_cover_the_declared_table_and_nothing_else(self) -> None:

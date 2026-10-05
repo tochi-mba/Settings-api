@@ -185,4 +185,34 @@ SETTINGS: tuple[SettingDef, ...] = (
             "a turn is stopped -- that is `max_turn_seconds`, and this one only talks."
         ),
     ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="delete_archived_sessions_after_days",
+        scope=SettingScope.ACCOUNT,
+        value_type=SettingType.INT,
+        default=0,
+        minimum=0,
+        maximum=3_650,
+        operator_clampable=True,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(0,),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub reads it when conversations are listed (sessions/retention.py): it "
+            "deletes at most ten per listing, each archived and untouched for this many days, "
+            "never one with an unfinished turn, a running helper or a waiting watch. Each "
+            "deletion is audited, and the conversation's files and workspace folder go too."
+        ),
+        summary="How many days an archived conversation is kept before it is deleted. 0 is never.",
+        description=(
+            "Archiving only hides a conversation; this is for when you want old transcripts "
+            "actually gone. Deletion cannot be undone: the transcript, its files and its "
+            "workspace folder go. Memories are kept, because they are yours to manage "
+            "separately.\n\n"
+            "Only a conversation archived that long *and* untouched that long is deleted, and "
+            "never one with anything still running. Zero, the default and what an outage lands "
+            "on, deletes nothing. One value for the account, because conversations are listed "
+            "across every profile at once. No assistant may change it."
+        ),
+    ),
 )

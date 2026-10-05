@@ -13,7 +13,14 @@ pays for all of it and had no say in what was kept.
 from __future__ import annotations
 
 from settings_api.domain.catalogue.lucy.namespace import NAMESPACE
-from settings_api.domain.types import OnUnavailable, Origin, SettingDef, SettingType
+from settings_api.domain.types import (
+    AgentAccess,
+    OnUnavailable,
+    Origin,
+    SettingDef,
+    SettingScope,
+    SettingType,
+)
 
 SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
@@ -148,6 +155,34 @@ SETTINGS: tuple[SettingDef, ...] = (
             "Raise it for work where helpers genuinely coordinate step by step. Keep it low "
             "if a fan-out has ever turned into a conversation between the helpers about the "
             "conversation between the helpers."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="helper_model",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.STR,
+        default=None,
+        nullable=True,
+        max_chars=128,
+        pattern=r"^[a-z0-9][a-z0-9-]*:[A-Za-z0-9][A-Za-z0-9._-]*$",
+        agent_writable=AgentAccess.WITH_APPROVAL,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(None,),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub runs every helper on it (agents/runtime.py), falling back to the "
+            "conversation's model with a notice in the helper's report when it cannot be "
+            "built, and retrying once on the conversation's model when it is unavailable."
+        ),
+        summary="Which model helpers run on, as provider:model. Null means the conversation's.",
+        description=(
+            "A cheaper or faster model for the helpers a conversation starts, while the "
+            "conversation keeps yours: reading files, checking a claim, searching. It never "
+            "changes `model`.\n\n"
+            "A helper model this deployment cannot run, or one that is down, falls back to the "
+            "conversation's model, and the helper's report says which answered. Null is what "
+            "an outage lands on: helpers run on the model you already chose."
         ),
     ),
 )

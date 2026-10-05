@@ -15,7 +15,14 @@ than an error log.
 from __future__ import annotations
 
 from settings_api.domain.catalogue.lucy.namespace import NAMESPACE
-from settings_api.domain.types import OnUnavailable, Origin, SettingDef, SettingScope, SettingType
+from settings_api.domain.types import (
+    AgentAccess,
+    OnUnavailable,
+    Origin,
+    SettingDef,
+    SettingScope,
+    SettingType,
+)
 
 SETTINGS: tuple[SettingDef, ...] = (
     SettingDef(
@@ -251,6 +258,32 @@ SETTINGS: tuple[SettingDef, ...] = (
         description=(
             "Counted across Lucy and every helper it starts, so a fan-out cannot spend past "
             "it by splitting the work up. Lucy warns as it approaches and stops at it."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="workspace_edit_matching",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.ENUM,
+        default="fuzzy",
+        choices=("exact", "whitespace", "fuzzy"),
+        agent_writable=AgentAccess.WITH_APPROVAL,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=("fuzzy", "whitespace", "exact"),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub's `workspace.edit` stops its exact, whitespace, fuzzy ladder at the "
+            "chosen rung (workspace/text.py) and refuses a looser near miss with the nearest "
+            "difference, so the model re-reads the file."
+        ),
+        summary="How closely a file edit must match the text Lucy quoted before it is applied.",
+        description=(
+            "`exact` applies only to the text as written. `whitespace` also forgives "
+            "indentation and spacing. `fuzzy`, the default, also accepts a close likeness. "
+            "Anything looser than you allow is refused, and Lucy re-reads the file.\n\n"
+            "Every value is safe to land on: every applied edit says which rung matched, and "
+            "an edit against a file that changed since it was read is refused whatever this "
+            "says."
         ),
     ),
 )

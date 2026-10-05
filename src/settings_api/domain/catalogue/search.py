@@ -14,11 +14,24 @@ router tries the named backend first and then works through the rest -- so a val
 changes ordering, not sources. And ``safe_search`` exists today only as a per-request
 boolean on its request schema, with no server-side setting at all, so the three-way choice
 below needs a change there before it means anything.
+
+The last six shape a search a request leaves unsaid: its language and region, the
+sites a person never wants to see, how many pages a summary is written from, how long
+the summary is, and the standing guidance every summary follows. ``research_notes`` is
+prompt text that reaches a model on every summary, so no assistant may write it: one
+injected page could otherwise plant standing instructions for every search after it.
 """
 
 from __future__ import annotations
 
-from settings_api.domain.types import OnUnavailable, Origin, SettingDef, SettingScope, SettingType
+from settings_api.domain.types import (
+    AgentAccess,
+    OnUnavailable,
+    Origin,
+    SettingDef,
+    SettingScope,
+    SettingType,
+)
 
 NAMESPACE = "search"
 
@@ -229,6 +242,147 @@ SETTINGS: tuple[SettingDef, ...] = (
             "somebody needed. A number of 1 means 'today', 7 a week, 365 a year.\n\n"
             "This is a search preference, not a prompt line. Which backend is in force in "
             "the live block is Lucy's `feeds_research_backend`."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="language",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.STR,
+        default="en",
+        max_chars=8,
+        pattern=r"^[a-z]{2,3}(?:-[a-z0-9]{2,4})?$",
+        agent_writable=AgentAccess.FREELY,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=("en",),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by web-search-api as the language a query is run in when the request names "
+            "none (before, always `en`)."
+        ),
+        summary="The language search results come back in, when a search does not say.",
+        description=(
+            "A language code such as `fr` or `pt-br`. A search that names a language uses "
+            "that one instead. English is what an outage lands on, and what the service always "
+            "used."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="region",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.STR,
+        default="us",
+        max_chars=8,
+        pattern=r"^[a-z]{2}$",
+        agent_writable=AgentAccess.FREELY,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=("us",),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by web-search-api as the country a query is ranked for when the request names "
+            "none (before, always `us`)."
+        ),
+        summary="The country search results are ranked for, when a search does not say.",
+        description=(
+            "A two-letter country code such as `gb` or `ng`, so a search like 'plumber near "
+            "me' finds local results. A search that names a region uses that one instead."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="blocked_domains",
+        scope=SettingScope.ACCOUNT,
+        value_type=SettingType.STR_LIST,
+        default=[],
+        max_items=100,
+        max_item_chars=253,
+        agent_writable=AgentAccess.WITH_APPROVAL,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=([],),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by web-search-api, which drops results whose host is one of these or a "
+            "subdomain of one before any page is read or summarised. A query restricted to "
+            "one of these sites, and a page named to be read directly, are not blocked."
+        ),
+        summary="Sites whose search results you never see.",
+        description=(
+            "Results from these sites, and from their subdomains, are removed from every "
+            "search before anything is read or summarised. A search you limit to one of these "
+            "sites still searches it, because you asked for that site.\n\n"
+            "An assistant may add one only with your approval: a domain added quietly is a "
+            "source quietly hidden from your research. An outage falls back to none blocked."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="read_top_pages",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.INT,
+        default=0,
+        minimum=0,
+        maximum=10,
+        operator_clampable=True,
+        agent_writable=AgentAccess.FREELY,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(0,),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by web-search-api when a summarised search does not say whether to read "
+            "pages, or asks for pages without a count. An explicit request wins, and a search "
+            "that is not summarised reads no page it did not ask for."
+        ),
+        summary="How many top result pages each search summary is written from.",
+        description=(
+            "Zero, the default, writes a summary from titles and snippets alone, which is "
+            "fast. Higher reads the top pages themselves first: slower, and a summary written "
+            "from what the pages say rather than what their snippets suggest."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="summary_length",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.ENUM,
+        default="standard",
+        choices=("brief", "standard", "detailed"),
+        agent_writable=AgentAccess.FREELY,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=("standard", "brief", "detailed"),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by web-search-api for search, scrape and summarize alike. `standard` is the "
+            "summary prompt as it always was; the other two change its length rule only."
+        ),
+        summary="How long research summaries are.",
+        description=(
+            "`brief` is one or two sentences and at most three key points. `standard` is two "
+            "to five sentences. `detailed` is five to ten sentences and at most ten key points."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="research_notes",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.STR,
+        default="",
+        max_chars=2_000,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=("",),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "Read by web-search-api and added after a request's own notes in the summary "
+            "prompt, framed as what to focus on rather than as a source of facts, within the "
+            "service's 4,000-character notes limit."
+        ),
+        summary="Standing guidance every research summary follows.",
+        description=(
+            "Such as 'prefer primary sources and flag sponsored content'. It steers what a "
+            "summary pays attention to, never what counts as fact, and it follows any notes a "
+            "single search gives.\n\n"
+            "Only you can change it. It is text a model reads on every summary, so an "
+            "assistant that could write it could leave instructions for every search after."
         ),
     ),
 )
