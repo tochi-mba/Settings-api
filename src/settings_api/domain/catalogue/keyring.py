@@ -4,9 +4,11 @@ keyring is the auth root for the whole family and holds the accounts, the profil
 credentials. Three of its deployment-wide knobs are really the person's: how long a
 session survives being idle, how long it may live however often it is used, and how many
 sessions they may hold at once. keyring reads all three from here at login, inside its own
-caps. The other four are proposals keyring has no mechanism for yet: whether to use email
-at all, whether to hear about a new session or a credential change, and whether a
-credential write asks for the password again.
+caps. The other four it reads at login and before every credential change: whether to use
+email at all, whether to hear about a new session or a credential change, and whether a
+credential change asks for the password again. The notices and the re-challenge default
+to off, because keyring did none of them before they could be chosen, and a setting
+nobody chose must not change what they get.
 
 That last one is the most consequential in the namespace.
 ``require_reauth_for_credential_changes`` is one of the two settings in this catalogue that
@@ -77,10 +79,11 @@ SETTINGS: tuple[SettingDef, ...] = (
         default=True,
         on_unavailable=OnUnavailable.USE_DEFAULT,
         conservative_values=(True,),
-        origin=Origin.PROPOSED,
+        origin=Origin.EXISTING,
         origin_note=(
-            "keyring has an email backend and an outbox; it has no per-account switch for "
-            "whether to use them."
+            "keyring reads it at every login and before every credential change. False "
+            "stops both notices from being queued; invites and password resets are not "
+            "governed."
         ),
         summary="Whether keyring may email this person at all.",
         description=(
@@ -98,17 +101,21 @@ SETTINGS: tuple[SettingDef, ...] = (
         namespace=NAMESPACE,
         key="notify_on_new_session",
         value_type=SettingType.BOOL,
-        default=True,
+        default=False,
         on_unavailable=OnUnavailable.USE_DEFAULT,
-        conservative_values=(True,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. keyring records sessions; it does not announce them.",
+        conservative_values=(False, True),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "keyring reads it at login. On, and with email_notifications on, a successful "
+            "login queues an email carrying the time only: no token, session id or address."
+        ),
         summary="Whether to say so when a new session is created on this account.",
         description=(
             "A sign-in from a device this account has not used before is the earliest signal "
-            "a person gets that somebody else has their password. Turning this off is "
-            "reasonable for somebody who signs in from a new container every day and "
-            "unreasonable for almost everybody else.\n\n"
+            "a person gets that somebody else has their password. On, every login is mailed "
+            "to the account's own address with the time and nothing else.\n\n"
+            "Off by default, because keyring did not announce sessions before this existed. "
+            "Both values are safe to land on during an outage: neither widens access.\n\n"
             "Subordinate to `email_notifications`: with that off, this changes nothing."
         ),
     ),
@@ -116,25 +123,35 @@ SETTINGS: tuple[SettingDef, ...] = (
         namespace=NAMESPACE,
         key="require_reauth_for_credential_changes",
         value_type=SettingType.BOOL,
-        default=True,
+        default=False,
         owner_writable_only=True,
         on_unavailable=OnUnavailable.REFUSE,
-        origin=Origin.PROPOSED,
-        origin_note="New here. keyring does not currently re-challenge for credential writes.",
+        origin=Origin.EXISTING,
+        origin_note=(
+            "keyring reads it before every credential change. On, adding, replacing or "
+            "removing a credential needs `current_password`, checked like a login, wrong "
+            "attempts counting toward the lockout; the delegated service routes are "
+            "refused outright. Refused during an outage, a change without the password is "
+            "503 and one with the right password goes ahead."
+        ),
         summary="Whether changing a stored credential requires proving the password again.",
         description=(
-            "On, adding or replacing a credential means entering the account password again, "
-            "even inside a live session. It is the control that stops a stolen session token "
-            "from becoming a stolen Spotify account, a stolen mailbox and a stolen everything "
-            "else in one pass.\n\n"
+            "On, adding, replacing or removing a stored credential -- including starting the "
+            "consent that will store one -- means entering the account password again, even "
+            "inside a live session. It is the control that stops a stolen session token from "
+            "becoming a stolen Spotify account, a stolen mailbox and a stolen everything else "
+            "in one pass. A service acting for you can never give the password, so with this "
+            "on you connect and disconnect things yourself.\n\n"
+            "Off by default, because keyring did not re-challenge before this existed.\n\n"
             "Two things make this the most protected entry in the catalogue. It is "
             "**owner-writable only**, so it can be changed only with a token the person "
             "minted for settings itself -- a service holding this person's token cannot turn "
             "it off, which matters because the service most likely to want it off is the one "
             "about to write a credential. And it **refuses rather than falling back**: if "
-            "this service is unreachable, keyring must not assume the answer is the permissive "
-            "one. Refusing a credential change during an outage is an inconvenience; assuming "
-            "no re-authentication is needed is a door left open."
+            "this service is unreachable, keyring does not assume the answer is the "
+            "permissive one: a change without the password is refused until it is back, and "
+            "one that carries the right password goes ahead, because that satisfies it either "
+            "way."
         ),
     ),
     SettingDef(
@@ -167,11 +184,15 @@ SETTINGS: tuple[SettingDef, ...] = (
         namespace=NAMESPACE,
         key="notify_on_credential_change",
         value_type=SettingType.BOOL,
-        default=True,
+        default=False,
         on_unavailable=OnUnavailable.USE_DEFAULT,
-        conservative_values=(True,),
-        origin=Origin.PROPOSED,
-        origin_note="New here. keyring records a credential write in its audit log and sends nothing.",
+        conservative_values=(False, True),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "keyring reads it before every credential change and at the OAuth callback. On, "
+            "and with email_notifications on, the owner is mailed the kind of change, the "
+            "time and who made it, never which credential or any part of one."
+        ),
         summary="Whether to say so when a stored credential is added, replaced or removed.",
         description=(
             "The counterpart to `notify_on_new_session`, for the event a step further in: "
@@ -179,10 +200,9 @@ SETTINGS: tuple[SettingDef, ...] = (
             "else. A credential write is rare and deliberate, so a notice about one is "
             "almost never noise, and the one time it is unexpected it is the only warning "
             "there will be.\n\n"
-            "Subordinate to `email_notifications`: with that off, this changes nothing. On "
-            "is conservative and is what an outage lands on -- an unwanted email is an "
-            "annoyance, and an unnoticed credential replacement is the failure it exists "
-            "to catch."
+            "Off by default, because keyring sent no such notice before this existed; both "
+            "values are safe to land on during an outage.\n\n"
+            "Subordinate to `email_notifications`: with that off, this changes nothing."
         ),
     ),
 )
