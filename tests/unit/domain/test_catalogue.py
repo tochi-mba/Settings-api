@@ -62,7 +62,6 @@ PROFILE_SCOPED = frozenset(
         "github.default_visibility",
         "environments.persist_history",
         "environments.command_timeout_seconds",
-        "persona.default_persona",
         "persona.recall_default_limit",
         "search.default_model",
         "search.search_backend",
@@ -151,6 +150,14 @@ READ_BY_A_SERVICE = frozenset(
         "environments.max_environments_per_profile",
         "github.default_owner",  # the hub, as the repos pack's owner for a new repository
         "github.default_visibility",  # the hub, as its visibility
+        "persona.default_persona",  # persona-api, for `@default`
+        "persona.log_values",
+        "persona.erasure_mode",
+        "persona.grace_days",
+        "keyring.email_notifications",  # keyring, at login and on credential change
+        "keyring.notify_on_new_session",
+        "keyring.notify_on_credential_change",
+        "keyring.require_reauth_for_credential_changes",
     }
 )
 
@@ -211,6 +218,40 @@ class TestEveryEntry:
 
 
 class TestTheCatalogueAsAWhole:
+    def test_nobody_who_never_chose_starts_losing_what_they_forget(self) -> None:
+        """The bug, named: `persona.erasure_mode` defaulted to `grace`. persona-api now reads
+        it and cannot tell a default from a choice, so everything anybody forgot after that
+        would have been destroyed thirty days later. The default is what persona-api always
+        did: keep it."""
+        entry = BY_QUALIFIED["persona.erasure_mode"]
+        assert entry.default == "tombstone"
+        assert entry.origin is Origin.EXISTING
+
+    def test_nobody_who_never_chose_starts_getting_mail_or_a_second_password(self) -> None:
+        """The bug, named: keyring's two notices and its re-challenge defaulted to on. keyring
+        now reads them, so every login would have been mailed and every credential change --
+        every connect an assistant makes for somebody -- refused without the password, for
+        people who chose none of it. Off is what keyring always did."""
+        for key in (
+            "notify_on_new_session",
+            "notify_on_credential_change",
+            "require_reauth_for_credential_changes",
+        ):
+            entry = BY_QUALIFIED[f"keyring.{key}"]
+            assert entry.default is False, key
+            assert entry.origin is Origin.EXISTING, key
+        reauth = BY_QUALIFIED["keyring.require_reauth_for_credential_changes"]
+        assert reauth.on_unavailable is OnUnavailable.REFUSE
+        assert reauth.owner_writable_only
+
+    def test_the_default_persona_is_one_for_the_account(self) -> None:
+        """The bug, named: `persona.default_persona` was per profile, and persona-api reads it
+        to decide which persona `@default` means -- before there is a profile to name. A
+        value stored against a profile would never have been read."""
+        entry = BY_QUALIFIED["persona.default_persona"]
+        assert entry.scope is SettingScope.ACCOUNT
+        assert entry.origin is Origin.EXISTING
+
     def test_explicit_filter_is_documented_as_running_in_spotify(self) -> None:
         """The bug, named: a deployed explicit filter was still advertised as a proposal."""
         entry = BY_QUALIFIED["spotify.allow_explicit"]

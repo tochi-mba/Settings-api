@@ -218,9 +218,11 @@ keyring is the auth root for the whole family and holds the accounts, the profil
 credentials. Three of its deployment-wide knobs are really the person's: how long a
 session survives being idle, how long it may live however often it is used, and how many
 sessions they may hold at once. keyring reads all three from here at login, inside its own
-caps. The other four are proposals keyring has no mechanism for yet: whether to use email
-at all, whether to hear about a new session or a credential change, and whether a
-credential write asks for the password again.
+caps. The other four it reads at login and before every credential change: whether to use
+email at all, whether to hear about a new session or a credential change, and whether a
+credential change asks for the password again. The notices and the re-challenge default
+to off, because keyring did none of them before they could be chosen, and a setting
+nobody chose must not change what they get.
 
 That last one is the most consequential in the namespace.
 ``require_reauth_for_credential_changes`` is one of the two settings in this catalogue that
@@ -228,8 +230,6 @@ a service must not be able to turn off through the ordinary write path, because 
 that could turn it off would be a service that could disarm the check standing between it
 and the credentials it is about to ask for. It is ``owner_writable_only`` for exactly that
 reason -- see ADR-0004. The other is ``search.store_query_history``.
-
-> **Needs a change in the owning service first:** `email_notifications`, `notify_on_new_session`, `require_reauth_for_credential_changes`, `notify_on_credential_change`. Until that change lands, setting these stores the value and changes no behaviour.
 
 #### `keyring.session_ttl_days`
 
@@ -278,7 +278,7 @@ The maximum is the operator's cap rather than a number with meaning of its own. 
 | Default | `true` |
 | Bounds | — |
 | On unavailable | use default |
-| Origin | **proposed** — keyring has an email backend and an outbox; it has no per-account switch for whether to use them. |
+| Origin | existing — keyring reads it at every login and before every credential change. False stops both notices from being queued; invites and password resets are not governed. |
 | Safe to fall back to | `true` |
 
 The master switch. With it off, keyring sends nothing -- no new-session notices, no security notices -- and this person finds out about their account only by looking.
@@ -293,13 +293,15 @@ On is the conservative value and is therefore the one an outage lands on: a noti
 | --- | --- |
 | Type | `bool` |
 | Scope | `account` |
-| Default | `true` |
+| Default | `false` |
 | Bounds | — |
 | On unavailable | use default |
-| Origin | **proposed** — New here. keyring records sessions; it does not announce them. |
-| Safe to fall back to | `true` |
+| Origin | existing — keyring reads it at login. On, and with email_notifications on, a successful login queues an email carrying the time only: no token, session id or address. |
+| Safe to fall back to | `false`, `true` |
 
-A sign-in from a device this account has not used before is the earliest signal a person gets that somebody else has their password. Turning this off is reasonable for somebody who signs in from a new container every day and unreasonable for almost everybody else.
+A sign-in from a device this account has not used before is the earliest signal a person gets that somebody else has their password. On, every login is mailed to the account's own address with the time and nothing else.
+
+Off by default, because keyring did not announce sessions before this existed. Both values are safe to land on during an outage: neither widens access.
 
 Subordinate to `email_notifications`: with that off, this changes nothing.
 
@@ -311,15 +313,17 @@ Subordinate to `email_notifications`: with that off, this changes nothing.
 | --- | --- |
 | Type | `bool` |
 | Scope | `account` |
-| Default | `true` |
+| Default | `false` |
 | Bounds | — |
 | On unavailable | **refuse** |
-| Origin | **proposed** — New here. keyring does not currently re-challenge for credential writes. |
+| Origin | existing — keyring reads it before every credential change. On, adding, replacing or removing a credential needs `current_password`, checked like a login, wrong attempts counting toward the lockout; the delegated service routes are refused outright. Refused during an outage, a change without the password is 503 and one with the right password goes ahead. |
 | Flags | **owner only** |
 
-On, adding or replacing a credential means entering the account password again, even inside a live session. It is the control that stops a stolen session token from becoming a stolen Spotify account, a stolen mailbox and a stolen everything else in one pass.
+On, adding, replacing or removing a stored credential -- including starting the consent that will store one -- means entering the account password again, even inside a live session. It is the control that stops a stolen session token from becoming a stolen Spotify account, a stolen mailbox and a stolen everything else in one pass. A service acting for you can never give the password, so with this on you connect and disconnect things yourself.
 
-Two things make this the most protected entry in the catalogue. It is **owner-writable only**, so it can be changed only with a token the person minted for settings itself -- a service holding this person's token cannot turn it off, which matters because the service most likely to want it off is the one about to write a credential. And it **refuses rather than falling back**: if this service is unreachable, keyring must not assume the answer is the permissive one. Refusing a credential change during an outage is an inconvenience; assuming no re-authentication is needed is a door left open.
+Off by default, because keyring did not re-challenge before this existed.
+
+Two things make this the most protected entry in the catalogue. It is **owner-writable only**, so it can be changed only with a token the person minted for settings itself -- a service holding this person's token cannot turn it off, which matters because the service most likely to want it off is the one about to write a credential. And it **refuses rather than falling back**: if this service is unreachable, keyring does not assume the answer is the permissive one: a change without the password is refused until it is back, and one that carries the right password goes ahead, because that satisfies it either way.
 
 #### `keyring.session_absolute_ttl_days`
 
@@ -347,15 +351,17 @@ keyring refuses an absolute ceiling below its idle timeout, so a person setting 
 | --- | --- |
 | Type | `bool` |
 | Scope | `account` |
-| Default | `true` |
+| Default | `false` |
 | Bounds | — |
 | On unavailable | use default |
-| Origin | **proposed** — New here. keyring records a credential write in its audit log and sends nothing. |
-| Safe to fall back to | `true` |
+| Origin | existing — keyring reads it before every credential change and at the OAuth callback. On, and with email_notifications on, the owner is mailed the kind of change, the time and who made it, never which credential or any part of one. |
+| Safe to fall back to | `false`, `true` |
 
 The counterpart to `notify_on_new_session`, for the event a step further in: somebody already inside the account taking or replacing the keys to everything else. A credential write is rare and deliberate, so a notice about one is almost never noise, and the one time it is unexpected it is the only warning there will be.
 
-Subordinate to `email_notifications`: with that off, this changes nothing. On is conservative and is what an outage lands on -- an unwanted email is an annoyance, and an unnoticed credential replacement is the failure it exists to catch.
+Off by default, because keyring sent no such notice before this existed; both values are safe to land on during an outage.
+
+Subordinate to `email_notifications`: with that off, this changes nothing.
 
 ## `user`
 
@@ -488,37 +494,38 @@ The counterpart of `persona.recall_default_limit`, and present for the same reas
 
 ## `persona`
 
-Three of these are persona-api's own knobs, and it reads them from here per request,
-inside its own caps: how many items a recall returns by default, and how many fields and
-notes are pinned into the prompt. The other four are proposals, and each one names the
-change persona-api needs before the value does anything. ``docs/catalogue.md`` repeats
-that per entry, so nobody ships a setting that silently does nothing.
+persona-api reads every one of these from here, inside its own caps: how many items a
+recall returns by default, how many fields and notes are pinned into the prompt, which
+persona ``@default`` names, whether its change log keeps old values, and what forgetting
+does.
 
 Two of them are worth reading together. persona-api allows twenty personas per account and
-has no notion of which one to load when nobody says, so ``default_persona`` is a real
-question with no current answer. And it has no erasure story whatsoever -- forgetting is a
-permanent tombstone with no expiry, its own operations documentation says so, and there is
-no sweeper -- so ``erasure_mode`` and ``grace_days`` here are proposing the *mechanism*
-rather than configuring one. They are spelled exactly as user-api's so that a person who
-has answered the question once does not have to answer a differently-shaped version of it.
-
-> **Needs a change in the owning service first:** `default_persona`, `log_values`, `erasure_mode`, `grace_days`. Until that change lands, setting these stores the value and changes no behaviour.
+had no notion of which one to load when nobody says, which ``default_persona`` answers.
+And forgetting was a permanent tombstone with no expiry; ``erasure_mode`` and
+``grace_days`` now choose between that, a grace period its sweeper ends, and destruction
+inside the request. They are spelled exactly as user-api's so that a person who has
+answered the question once does not have to answer a differently-shaped version of it,
+but ``erasure_mode`` defaults to ``tombstone`` where user-api's defaults to ``grace``:
+persona-api cannot tell a default from a choice, and a ``grace`` default would start
+destroying, thirty days out, everything anybody forgot after this was read.
 
 #### `persona.default_persona`
 
-*Which persona to load when a conversation does not name one.*
+*Which persona `@default` loads when a conversation does not name one.*
 
 | | |
 | --- | --- |
 | Type | `str` |
-| Scope | `profile` |
+| Scope | `account` |
 | Default | `null` |
 | Bounds | ≤64 chars, `^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$`, nullable |
 | On unavailable | use default |
-| Origin | **proposed** — New here. persona-api allows `max_personas_per_account` = 20 and has no default-selection rule; every route takes the persona as a path segment. |
+| Origin | existing — persona-api reads it, with no profile, whenever a `{profile}` path segment is `@default`, and resolves that segment to this persona before the route runs. Null, an outage, or a name it cannot store leaves `@default` refused. |
 | Safe to fall back to | `null` |
 
-Null means there is no default and a caller must name one, which is what persona-api requires today. Naming one here makes 'no persona given' mean that persona instead of an error.
+Null means there is no default and a caller must name one, as persona-api always required. Naming one here makes `@default` mean that persona on every persona route.
+
+One value per account, not per profile: which persona to load is asked before there is a profile to name, so a value stored against a profile would never be read.
 
 Null is the conservative value, and for an unusual reason: falling back to null makes the call fail loudly, while falling back to a name would silently load *a* persona during an outage -- and a persona is the voice the assistant speaks in, so the wrong one is conspicuous in a way a wrong integer is not.
 
@@ -549,7 +556,7 @@ Bounded above by persona-api's own `recall_max_limit`, which is 100. Raising thi
 | Default | `false` |
 | Bounds | — |
 | On unavailable | use default |
-| Origin | **proposed** — New here. persona-api has an event log; it does not record old values. |
+| Origin | existing — persona-api reads it on set_field and revise_note: on, a change that replaces a field's value or a note's body keeps what it replaced in that event. Whatever destroys the row strips the kept value in the same transaction. |
 | Safe to fall back to | `false` |
 
 The same decision as `user.log_values` and spelled the same way, because a person answering 'does the log keep what I changed' should answer it once per service at most and never in two different vocabularies.
@@ -558,23 +565,21 @@ Off is conservative: a log that recorded nothing can be reconstructed by asking,
 
 #### `persona.erasure_mode`
 
-*What deleting one persona field or note does: schedule it, destroy it, or mark it.*
+*What deleting a persona field or note does: keep it, destroy it later, or now.*
 
 | | |
 | --- | --- |
 | Type | `enum` |
 | Scope | `account` |
-| Default | `grace` |
+| Default | `tombstone` |
 | Bounds | `grace` / `immediate` / `tombstone` |
 | On unavailable | use default |
-| Origin | **proposed** — New here, and it proposes a mechanism rather than configuring one: persona-api has no grace period, no retention window and no sweeper. |
-| Safe to fall back to | `grace`, `tombstone` |
+| Origin | existing — persona-api reads it on forget_field and forget_note and writes the answer on the row: `tombstone` keeps it, `grace` schedules its sweeper, `immediate` destroys the row, its logged values and its search terms before responding. |
+| Safe to fall back to | `tombstone`, `grace` |
 
-Identical in meaning to `user.erasure_mode`, and deliberately identical in spelling. persona-api today does exactly one of these three -- `tombstone` -- without calling it anything: forgetting sets a marker that nothing ever purges.
+Identical in meaning and spelling to `user.erasure_mode`. `tombstone` hides the field or note and keeps it, recoverable; it is what persona-api always did, so it is the default. `grace` hides it now and destroys it after `grace_days`; setting a forgotten field again before then revives it. `immediate` destroys it inside the request, with no recovery.
 
-So adopting this means persona-api gains a sweeper and a grace path. Until it does, setting this changes nothing, and the generated catalogue documentation says so.
-
-As in user-api, a change here must never be retroactive.
+The choice is written on each row when it is forgotten and never re-read, so a change here is never retroactive.
 
 #### `persona.grace_days`
 
@@ -587,10 +592,10 @@ As in user-api, a change here must never be retroactive.
 | Default | `30` |
 | Bounds | 0-365, operator-clampable |
 | On unavailable | use default |
-| Origin | **proposed** — New here; depends on the same persona-api change as `persona.erasure_mode`. |
+| Origin | existing — persona-api writes forget time plus this many days on a row forgotten under `grace`; its sweeper (hourly by default) destroys the row once that has passed. |
 | Safe to fall back to | `30` |
 
-Only meaningful once `persona.erasure_mode` is `grace`, and only meaningful at all once persona-api has a sweeper.
+Only meaningful when `persona.erasure_mode` is `grace`. The period is fixed on each row when it is forgotten, so changing this never reschedules something already waiting. Zero means the next sweep, which is still not `immediate`.
 
 Thirty days to match user-api, for the same reason the vocabulary matches: two services that hold a person's data and forget it on different schedules are two things to remember rather than one.
 
