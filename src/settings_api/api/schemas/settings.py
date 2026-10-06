@@ -18,7 +18,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from settings_api.api.schemas.common import SettingValue
 from settings_api.domain.resolution import Source
-from settings_api.domain.types import OnUnavailable, Origin, SettingScope, SettingType
+from settings_api.domain.types import (
+    AgentAccess,
+    OnUnavailable,
+    Origin,
+    SettingScope,
+    SettingType,
+)
 
 NamespaceValues = dict[str, SettingValue]
 """One namespace's settings, by key."""
@@ -103,6 +109,14 @@ class SettingDescription(BaseModel):
     owner_writable_only: bool = Field(
         description="Whether only a token minted for settings itself may change this."
     )
+    agent_writable: AgentAccess = Field(
+        description=(
+            "Whether an assistant may change this on the person's behalf: `never`, "
+            "`with_approval` (only after the person agrees to that one change) or `freely`. "
+            "An assistant reading the catalogue needs this to know which settings to send "
+            "the person to change themselves."
+        )
+    )
     on_unavailable: OnUnavailable = Field(
         description=(
             "What a consuming service must do when this service is unreachable: fall "
@@ -152,6 +166,12 @@ class SettingResponse(BaseModel):
         description=(
             "`account` is one value for the person, the same under every keyring "
             "profile. `profile` is one value per keyring profile."
+        )
+    )
+    agent_writable: AgentAccess = Field(
+        description=(
+            "Whether an assistant may change this: the declaration a hub applies before it "
+            "lets a model write the setting, since this service cannot tell the two apart."
         )
     )
 

@@ -115,6 +115,7 @@ class TestGetSetting:
             "source": "default",
             "pinned": False,
             "scope": "profile",
+            "agent_writable": "never",
         }
         await set_setting(client, OWNER)
         body = (
@@ -152,6 +153,14 @@ class TestDescribeSettings:
         assert market["origin"] == "existing"
         assert market["owner_writable_only"] is False
         assert market["scope"] == "profile"
+        # An assistant reading the catalogue could not tell which settings were the person's
+        # alone to change, so it offered to change them and was refused after asking.
+        assert {s["agent_writable"] for s in body["settings"]} <= {
+            "never",
+            "with_approval",
+            "freely",
+        }
+        assert any(s["agent_writable"] == "never" for s in body["settings"])
         enum = next(
             s for s in body["settings"] if s["key"] == "erasure_mode" and s["namespace"] == "user"
         )

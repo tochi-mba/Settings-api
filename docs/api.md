@@ -17,7 +17,7 @@ names the keys. A body field named `profile` is also a 422 (`extra="forbid"`).
 
 | Operation | Route | What it does |
 | --- | --- | --- |
-| `describe_settings` | `GET /v1/settings/schema` | The catalogue as this deployment has it, for every namespace the token grants: each setting's type, scope, bounds, default, current value, and whether an operator narrowed or pinned it. |
+| `describe_settings` | `GET /v1/settings/schema` | The catalogue as this deployment has it, for every namespace the token grants: each setting's type, scope, bounds, default, current value, whether an operator narrowed or pinned it, and whether an assistant may change it (`agent_writable`). |
 | `get_settings` | `GET /v1/settings` | Every namespace the token grants, resolved for this person. |
 | `get_namespace` | `GET /v1/settings/{namespace}` | One namespace, with `common` merged underneath it. |
 | `get_setting` | `GET /v1/settings/{namespace}/{key}` | One value, with where it came from. |

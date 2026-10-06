@@ -8,6 +8,7 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Added
 
+- **The catalogue says whether an assistant may change each setting.** `GET /v1/settings/schema` carries `agent_writable` (`never`, `with_approval` or `freely`) on every entry. Each definition already had it, but nothing published it. An assistant reading the catalogue could not tell which settings were the person's alone to change, so it offered to change them and was refused only after asking.
 - **Every setting the family reads is in the catalogue.** Twenty-two keys the services already
   read had no entry, so a person could not set any of them: twelve in `lucy` (how Lucy works
   with a person, which prompt sections it sends, the helper model, deleting archived
