@@ -280,6 +280,7 @@ async def get_setting(
         source=resolved.source,
         pinned=resolved.pinned,
         scope=resolved.definition.scope,
+        agent_writable=resolved.definition.agent_writable,
     )
 
 
@@ -557,6 +558,7 @@ def _describe(item: Resolved) -> SettingDescription:
         source=item.source,
         pinned=item.pinned,
         owner_writable_only=definition.owner_writable_only,
+        agent_writable=definition.agent_writable,
         on_unavailable=definition.on_unavailable,
         origin=definition.origin,
         scope=definition.scope,
