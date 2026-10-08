@@ -185,24 +185,29 @@ SETTINGS: tuple[SettingDef, ...] = (
         scope=SettingScope.PROFILE,
         value_type=SettingType.ENUM,
         default="edits",
-        choices=("plan", "edits", "full"),
+        choices=("plan", "ask", "edits", "full"),
         on_unavailable=OnUnavailable.USE_DEFAULT,
-        conservative_values=("plan", "edits"),
+        conservative_values=("plan", "ask", "edits"),
         origin=Origin.EXISTING,
         origin_note=(
-            "The bridge maps it to the claude CLI's permission mode: plan, acceptEdits, "
-            "bypassPermissions. The approval card names the level each task will run at. "
-            "An outage falls no looser than edits."
+            "A ceiling, in the order plan < ask < edits < full: Lucy may run a turn at this "
+            "level or a more careful one -- plan first, then carry the plan out -- never "
+            "looser. The bridge maps each to the claude CLI's permission mode: plan, "
+            "default, acceptEdits, bypassPermissions. The card names the level of every "
+            "turn. An outage falls no looser than edits."
         ),
-        summary="How much a delegated Claude Code task may do without asking anyone.",
+        summary="The most a delegated Claude Code task may do without asking anyone.",
         description=(
             "`plan` is read-only: the task explores and reports, and changes nothing. "
-            "`edits` lets it edit files in its folder and asks about everything beyond "
-            "that -- the default, and the sensible place to start. `full` lets it run "
-            "commands and act without further prompts, which is for folders you would "
+            "`ask` is Claude Code's own default: anything that needs permission is refused "
+            "and brought back to you, and Lucy asks you on a card before letting it. "
+            "`edits` lets it edit files in its folder on its own and asks about everything "
+            "beyond that -- the default, and the sensible place to start. `full` lets it "
+            "run commands and act without further prompts, which is for folders you would "
             "trust a contractor alone in.\n\n"
-            "Lucy may never change this, with approval or without; the card that asks for "
-            "each task says the level it will run at."
+            "This is a ceiling: Lucy may plan first at a more careful level and carry the "
+            "plan out at yours, never above it. Lucy may never change it, with approval or "
+            "without."
         ),
     ),
 )
