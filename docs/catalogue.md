@@ -36,7 +36,7 @@ person's own token. There are two, and both are ones where the service that woul
 from changing them is the service that should not be allowed to.
 
 
-**169 settings across 10 namespaces.**
+**172 settings across 10 namespaces.**
 
 ## Contents
 
@@ -45,7 +45,7 @@ from changing them is the service that should not be allowed to.
 - **`user`** (6) — `erasure_mode`, `grace_days`, `log_values`, `default_write_scope`, `max_pinned`, `search_default_limit`
 - **`persona`** (7) — `default_persona`, `recall_default_limit`, `log_values`, `erasure_mode`, `grace_days`, `max_pinned_fields`, `max_pinned_notes`
 - **`memory`** (7) — `retrieval_limit`, `retrieval_trust_floor`, `write_importance_floor`, `recency_half_life_days`, `consolidation`, `erasure_grace_days`, `block_char_limit`
-- **`lucy`** (99) — `model`, `fallback_model`, `thinking`, `max_thinking_tokens`, `temperature`, `response_style`, `formatting`, `emoji`, `vision_enabled`, `ambiguity`, `opinions`, `announce_memory_writes`, `max_context_tokens`, `reserve_percent`, `warn_at_percent`, `compaction_trigger_percent`, `history_turns_kept`, `tool_results_kept`, `max_tool_result_tokens`, `render_read_tokens`, `render_preview_tokens`, `render_total_tokens`, `preferred_capabilities`, `prompt_sections_disabled`, `decisions`, `decision_shadow_mode`, `decision_capabilities`, `decision_memory`, `decision_recovery`, `decision_claims`, `decision_keeping`, `decision_timeout_ms`, `decision_max_per_turn`, `max_output_tokens_per_turn`, `max_tool_calls_per_turn`, `max_turn_seconds`, `max_llm_turns`, `max_subagent_turns`, `max_steps_per_plan`, `max_parallel_steps`, `step_timeout_seconds`, `plan_timeout_seconds`, `session_token_budget`, `workspace_edit_matching`, `agent_max_depth`, `agent_max_concurrent`, `agent_result_token_cap`, `agent_wall_clock_seconds`, `agent_message_max_chars`, `agent_message_burst`, `helper_model`, `permission_mode`, `approval_policy`, `confirm_outward_actions`, `enabled_capabilities`, `disabled_capabilities`, `act_unattended`, `quiet_hours`, `wake_by_default`, `watch_default_minutes`, `memory_write_policy`, `memory_retrieval_limit`, `incognito`, `log_message_content`, `input_policy`, `auto_title`, `session_idle_archive_days`, `workspace_retention_hours`, `stream_thinking`, `notify_on_long_turn`, `long_turn_seconds`, `delete_archived_sessions_after_days`, `retry_attempts`, `retry_max_seconds`, `downstream_timeout_seconds`, `prompt_feeds_enabled`, `prompt_hide_personal_feeds`, `prompt_allow_unknown_feed_fields`, `feeds_account`, `feeds_persona`, `feeds_music`, `feeds_workspace`, `feeds_research`, `feeds_account_pinned`, `feeds_persona_identity`, `feeds_persona_notes`, `feeds_music_now_playing`, `feeds_music_device`, `feeds_music_shuffled`, `feeds_music_repeat`, `feeds_music_queue_head`, `feeds_workspace_cwd`, `feeds_workspace_shell`, `feeds_workspace_pid`, `feeds_workspace_shells_running`, `feeds_workspace_sandbox`, `feeds_workspace_git_branch`, `feeds_workspace_last_command`, `feeds_research_backend`
+- **`lucy`** (102) — `model`, `fallback_model`, `thinking`, `max_thinking_tokens`, `temperature`, `response_style`, `formatting`, `emoji`, `vision_enabled`, `ambiguity`, `opinions`, `announce_memory_writes`, `max_context_tokens`, `reserve_percent`, `warn_at_percent`, `compaction_trigger_percent`, `history_turns_kept`, `tool_results_kept`, `max_tool_result_tokens`, `render_read_tokens`, `render_preview_tokens`, `render_total_tokens`, `preferred_capabilities`, `prompt_sections_disabled`, `decisions`, `decision_shadow_mode`, `decision_capabilities`, `decision_memory`, `decision_recovery`, `decision_claims`, `decision_keeping`, `decision_timeout_ms`, `decision_max_per_turn`, `max_output_tokens_per_turn`, `max_tool_calls_per_turn`, `max_turn_seconds`, `max_llm_turns`, `max_subagent_turns`, `max_steps_per_plan`, `max_parallel_steps`, `step_timeout_seconds`, `plan_timeout_seconds`, `session_token_budget`, `workspace_edit_matching`, `agent_max_depth`, `agent_max_concurrent`, `agent_result_token_cap`, `agent_wall_clock_seconds`, `agent_message_max_chars`, `agent_message_burst`, `helper_model`, `permission_mode`, `approval_policy`, `confirm_outward_actions`, `enabled_capabilities`, `disabled_capabilities`, `claude_code_delegation`, `claude_code_directories`, `claude_code_run_level`, `act_unattended`, `quiet_hours`, `wake_by_default`, `watch_default_minutes`, `memory_write_policy`, `memory_retrieval_limit`, `incognito`, `log_message_content`, `input_policy`, `auto_title`, `session_idle_archive_days`, `workspace_retention_hours`, `stream_thinking`, `notify_on_long_turn`, `long_turn_seconds`, `delete_archived_sessions_after_days`, `retry_attempts`, `retry_max_seconds`, `downstream_timeout_seconds`, `prompt_feeds_enabled`, `prompt_hide_personal_feeds`, `prompt_allow_unknown_feed_fields`, `feeds_account`, `feeds_persona`, `feeds_music`, `feeds_workspace`, `feeds_research`, `feeds_account_pinned`, `feeds_persona_identity`, `feeds_persona_notes`, `feeds_music_now_playing`, `feeds_music_device`, `feeds_music_shuffled`, `feeds_music_repeat`, `feeds_music_queue_head`, `feeds_workspace_cwd`, `feeds_workspace_shell`, `feeds_workspace_pid`, `feeds_workspace_shells_running`, `feeds_workspace_sandbox`, `feeds_workspace_git_branch`, `feeds_workspace_last_command`, `feeds_research_backend`
 - **`spotify`** (8) — `default_market`, `max_batch_size`, `confirm_timeout_seconds`, `job_retention_hours`, `default_device`, `shuffle_on_play`, `repeat_mode`, `allow_explicit`
 - **`search`** (14) — `default_model`, `search_backend`, `disabled_providers`, `max_content_chars`, `safe_search`, `store_query_history`, `default_result_count`, `recency_days`, `language`, `region`, `blocked_domains`, `read_top_pages`, `summary_length`, `research_notes`
 - **`environments`** (7) — `idle_environment_hours`, `idle_shell_minutes`, `max_environments_per_profile`, `default_shell`, `persist_history`, `command_timeout_seconds`, `max_output_bytes`
@@ -1808,6 +1808,58 @@ Empty means Lucy offers whatever is connected and stays quiet about the rest. Na
 A disabled capability is not offered and not mentioned. Lucy is told it is switched off rather than simply not seeing it, so that it stops suggesting the thing instead of forgetting the thing exists.
 
 **This refuses rather than falling back.** An empty list is the default because that is how Lucy works at all, so landing on it during an outage would re-enable something the person turned off -- and nobody would find out, because the turn would succeed.
+
+#### `lucy.claude_code_delegation`
+
+*Whether Lucy may hand a whole task to Claude Code on your machine.*
+
+| | |
+| --- | --- |
+| Type | `bool` |
+| Scope | `profile` |
+| Default | `false` |
+| Bounds | — |
+| On unavailable | use default |
+| Origin | existing — The hub's coder capability reads it. Off, the capability reports disabled and tells Lucy it is the person's switch. An outage lands on off, never more. No assistant may change it, with approval or without: a model that could turn it on could hand itself the person's computer. |
+| Safe to fall back to | `false` |
+
+On, Lucy can delegate a task you asked for to a real Claude Code session on this machine -- in the folders you list, at the run level you choose, and only ever after you approve each task on its own card. Off, the capability is absent, and Lucy can only tell you where to turn it on.
+
+Each delegated session runs with your own Claude Code login and spends your own Claude budget, which is why every switch here is yours alone.
+
+#### `lucy.claude_code_directories`
+
+*The folders on your machine a delegated Claude Code task may work in.*
+
+| | |
+| --- | --- |
+| Type | `str_list` |
+| Scope | `profile` |
+| Default | `[]` |
+| Bounds | ≤16 items, items ≤256 chars |
+| On unavailable | use default |
+| Origin | existing — The hub refuses a delegation whose directory is not listed here, before anything reaches the bridge. Empty means delegation is off even when the switch above is on. An outage lands on empty. |
+| Safe to fall back to | `[]` |
+
+Absolute paths, one per entry. A task runs in exactly one of them -- Lucy asks when a request does not say which -- and a folder not on this list is refused outright, however the task was worded. The list is yours alone to edit; Lucy can read it to say where she may work, and nothing more.
+
+#### `lucy.claude_code_run_level`
+
+*How much a delegated Claude Code task may do without asking anyone.*
+
+| | |
+| --- | --- |
+| Type | `enum` |
+| Scope | `profile` |
+| Default | `edits` |
+| Bounds | `plan` / `edits` / `full` |
+| On unavailable | use default |
+| Origin | existing — The bridge maps it to the claude CLI's permission mode: plan, acceptEdits, bypassPermissions. The approval card names the level each task will run at. An outage falls no looser than edits. |
+| Safe to fall back to | `plan`, `edits` |
+
+`plan` is read-only: the task explores and reports, and changes nothing. `edits` lets it edit files in its folder and asks about everything beyond that -- the default, and the sensible place to start. `full` lets it run commands and act without further prompts, which is for folders you would trust a contractor alone in.
+
+Lucy may never change this, with approval or without; the card that asks for each task says the level it will run at.
 
 #### `lucy.act_unattended`
 

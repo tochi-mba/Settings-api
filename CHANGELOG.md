@@ -8,6 +8,14 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Added
 
+- **Three `lucy.claude_code_*` settings: the person's half of Claude Code delegation.**
+  `claude_code_delegation` (bool, off, an outage lands on off), `claude_code_directories`
+  (the only folders a delegated task may work in; empty means off), and
+  `claude_code_run_level` (`plan | edits | full`, default `edits`; an outage falls no
+  looser than `edits`). All three are profile-scoped and none may be changed by an
+  assistant, with approval or without: a model that could loosen them could hand itself
+  the person's computer. The hub's coder capability reads them; the approval card for
+  each task names the level it will run at.
 - **The catalogue says whether an assistant may change each setting.** `GET /v1/settings/schema` carries `agent_writable` (`never`, `with_approval` or `freely`) on every entry. Each definition already had it, but nothing published it. An assistant reading the catalogue could not tell which settings were the person's alone to change, so it offered to change them and was refused only after asking.
 - **Every setting the family reads is in the catalogue.** Twenty-two keys the services already
   read had no entry, so a person could not set any of them: twelve in `lucy` (how Lucy works
