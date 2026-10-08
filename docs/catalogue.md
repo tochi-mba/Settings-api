@@ -1845,21 +1845,21 @@ Absolute paths, one per entry. A task runs in exactly one of them -- Lucy asks w
 
 #### `lucy.claude_code_run_level`
 
-*How much a delegated Claude Code task may do without asking anyone.*
+*The most a delegated Claude Code task may do without asking anyone.*
 
 | | |
 | --- | --- |
 | Type | `enum` |
 | Scope | `profile` |
 | Default | `edits` |
-| Bounds | `plan` / `edits` / `full` |
+| Bounds | `plan` / `ask` / `edits` / `full` |
 | On unavailable | use default |
-| Origin | existing — The bridge maps it to the claude CLI's permission mode: plan, acceptEdits, bypassPermissions. The approval card names the level each task will run at. An outage falls no looser than edits. |
-| Safe to fall back to | `plan`, `edits` |
+| Origin | existing — A ceiling, in the order plan < ask < edits < full: Lucy may run a turn at this level or a more careful one -- plan first, then carry the plan out -- never looser. The bridge maps each to the claude CLI's permission mode: plan, default, acceptEdits, bypassPermissions. The card names the level of every turn. An outage falls no looser than edits. |
+| Safe to fall back to | `plan`, `ask`, `edits` |
 
-`plan` is read-only: the task explores and reports, and changes nothing. `edits` lets it edit files in its folder and asks about everything beyond that -- the default, and the sensible place to start. `full` lets it run commands and act without further prompts, which is for folders you would trust a contractor alone in.
+`plan` is read-only: the task explores and reports, and changes nothing. `ask` is Claude Code's own default: anything that needs permission is refused and brought back to you, and Lucy asks you on a card before letting it. `edits` lets it edit files in its folder on its own and asks about everything beyond that -- the default, and the sensible place to start. `full` lets it run commands and act without further prompts, which is for folders you would trust a contractor alone in.
 
-Lucy may never change this, with approval or without; the card that asks for each task says the level it will run at.
+This is a ceiling: Lucy may plan first at a more careful level and carry the plan out at yours, never above it. Lucy may never change it, with approval or without.
 
 #### `lucy.act_unattended`
 

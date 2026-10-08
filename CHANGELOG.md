@@ -29,6 +29,11 @@ All notable changes to settings-api are recorded here. The format follows
 
 ### Changed
 
+- **`lucy.claude_code_run_level` gains `ask`, and is a ceiling.** `ask` is Claude Code's
+  own default mode: anything that needs permission is refused and brought back to the
+  person, and Lucy asks on a card before allowing it. The order is plan < ask < edits <
+  full; Lucy may run a turn at the person's level or a more careful one -- plan first, then
+  carry the plan out -- never looser. An outage still falls no looser than `edits`.
 - **Three more entries are read, and say so:** `user.default_write_scope` (user-api, where
   a write leaves its scopes out), `memory.write_importance_floor` (memory-api, on every write
   that adds a memory) and `environments.default_shell` (environments-api, when a shell
