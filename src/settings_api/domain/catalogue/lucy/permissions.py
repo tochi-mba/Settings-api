@@ -130,4 +130,79 @@ SETTINGS: tuple[SettingDef, ...] = (
             "would succeed."
         ),
     ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="claude_code_delegation",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.BOOL,
+        default=False,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=(False,),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub's coder capability reads it. Off, the capability reports disabled and "
+            "tells Lucy it is the person's switch. An outage lands on off, never more. No "
+            "assistant may change it, with approval or without: a model that could turn it "
+            "on could hand itself the person's computer."
+        ),
+        summary="Whether Lucy may hand a whole task to Claude Code on your machine.",
+        description=(
+            "On, Lucy can delegate a task you asked for to a real Claude Code session on "
+            "this machine -- in the folders you list, at the run level you choose, and only "
+            "ever after you approve each task on its own card. Off, the capability is "
+            "absent, and Lucy can only tell you where to turn it on.\n\n"
+            "Each delegated session runs with your own Claude Code login and spends your "
+            "own Claude budget, which is why every switch here is yours alone."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="claude_code_directories",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.STR_LIST,
+        default=[],
+        max_items=16,
+        max_item_chars=256,
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=([],),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The hub refuses a delegation whose directory is not listed here, before "
+            "anything reaches the bridge. Empty means delegation is off even when the "
+            "switch above is on. An outage lands on empty."
+        ),
+        summary="The folders on your machine a delegated Claude Code task may work in.",
+        description=(
+            "Absolute paths, one per entry. A task runs in exactly one of them -- Lucy asks "
+            "when a request does not say which -- and a folder not on this list is refused "
+            "outright, however the task was worded. The list is yours alone to edit; Lucy "
+            "can read it to say where she may work, and nothing more."
+        ),
+    ),
+    SettingDef(
+        namespace=NAMESPACE,
+        key="claude_code_run_level",
+        scope=SettingScope.PROFILE,
+        value_type=SettingType.ENUM,
+        default="edits",
+        choices=("plan", "edits", "full"),
+        on_unavailable=OnUnavailable.USE_DEFAULT,
+        conservative_values=("plan", "edits"),
+        origin=Origin.EXISTING,
+        origin_note=(
+            "The bridge maps it to the claude CLI's permission mode: plan, acceptEdits, "
+            "bypassPermissions. The approval card names the level each task will run at. "
+            "An outage falls no looser than edits."
+        ),
+        summary="How much a delegated Claude Code task may do without asking anyone.",
+        description=(
+            "`plan` is read-only: the task explores and reports, and changes nothing. "
+            "`edits` lets it edit files in its folder and asks about everything beyond "
+            "that -- the default, and the sensible place to start. `full` lets it run "
+            "commands and act without further prompts, which is for folders you would "
+            "trust a contractor alone in.\n\n"
+            "Lucy may never change this, with approval or without; the card that asks for "
+            "each task says the level it will run at."
+        ),
+    ),
 )

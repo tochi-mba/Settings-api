@@ -39,7 +39,7 @@ EXPECTED_COUNTS = {
     "user": 6,
     "persona": 7,
     "memory": 7,
-    "lucy": 99,
+    "lucy": 102,
     "spotify": 8,
     "search": 14,
     "environments": 7,
@@ -86,6 +86,9 @@ PROFILE_SCOPED = frozenset(
         "lucy.preferred_capabilities",
         "lucy.workspace_edit_matching",
         "lucy.act_unattended",
+        "lucy.claude_code_delegation",
+        "lucy.claude_code_directories",
+        "lucy.claude_code_run_level",
         "lucy.quiet_hours",
         "lucy.wake_by_default",
         "lucy.watch_default_minutes",
@@ -292,7 +295,7 @@ class TestTheCatalogueAsAWhole:
         assert {
             namespace: len(entries) for namespace, entries in CATALOGUE.items()
         } == EXPECTED_COUNTS
-        assert len(BY_QUALIFIED) == sum(EXPECTED_COUNTS.values()) == 169
+        assert len(BY_QUALIFIED) == sum(EXPECTED_COUNTS.values()) == 172
 
     def test_profile_scoped_settings_are_exactly_this_set(self) -> None:
         # Exclusive scopes, declared on the entry. A setting nobody thought about stays
